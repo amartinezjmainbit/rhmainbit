@@ -314,6 +314,70 @@ function getRangoAntig(r) {
   return '1 - 2 AÑOS';
 }
 
+// ══ TOOLTIP STATS HELPERS ══
+function ttProm(rows, field) {
+  let s = 0, c = 0;
+  for (const r of rows) {
+    const v = r[field];
+    if (v == null || v === '') continue;
+    const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9.\-]/g,''));
+    if (isFinite(n)) { s += n; c++; }
+  }
+  return c ? s / c : null;
+}
+function ttAntigProm(rows) {
+  const now = new Date();
+  let s = 0, c = 0;
+  for (const r of rows) {
+    const d = pDate(r['FECHA_INGRESO'] || r['Personalizado']);
+    if (!d) continue;
+    s += (now - d) / (1000 * 60 * 60 * 24 * 365.25);
+    c++;
+  }
+  return c ? s / c : null;
+}
+function ttDom(rows, field) {
+  const c = countBy(rows, field);
+  const top = Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
+  return top ? top[0] : null;
+}
+function ttMixHM(rows) {
+  const h = rows.filter(r => norm(r['GENERO']) === 'H').length;
+  const m = rows.filter(r => norm(r['GENERO']) === 'M').length;
+  const t = h + m;
+  if (!t) return null;
+  return `${Math.round(h/t*100)}% H · ${Math.round(m/t*100)}% M`;
+}
+function ttFmtNum(n, suffix) {
+  if (n == null) return null;
+  return n.toFixed(1).replace(/\.0$/,'') + (suffix || '');
+}
+function ttRangoEdad(rows) {
+  let min = Infinity, max = -Infinity;
+  for (const r of rows) {
+    const v = r['EDAD'];
+    const n = typeof v === 'number' ? v : Number(String(v||'').replace(/[^0-9.\-]/g,''));
+    if (isFinite(n) && n > 0) {
+      if (n < min) min = n;
+      if (n > max) max = n;
+    }
+  }
+  if (!isFinite(min)) return null;
+  return min === max ? `${min} años` : `${min}–${max} años`;
+}
+function buildMonthStats(year, month, baseData) {
+  const start = new Date(year, month, 1);
+  const eom = new Date(year, month + 1, 0);
+  let altas = 0, bajas = 0;
+  for (const r of baseData) {
+    const di = pDate(r['FECHA_INGRESO'] || r['Personalizado']);
+    if (di && di >= start && di <= eom) altas++;
+    const db = pDate(r['FECHA_BAJA']);
+    if (db && db >= start && db <= eom) bajas++;
+  }
+  return { altas, bajas };
+}
+
 // ══ REBUILD ══
 function rebuildAll() {
   const data = getFiltered();
@@ -414,7 +478,32 @@ function renderGeneralMes(data) {
       responsive:true, maintainAspectRatio:false,
       layout:{padding:{top:20, right:24, left:4, bottom:4}},
       plugins:{legend:{display:false},
-        tooltip:{callbacks:{label:c=>' '+c.parsed.y+' personas'}}},
+        tooltip:{
+          padding:10, displayColors:false,
+          callbacks:{
+            label: c => {
+              const i = c.dataIndex;
+              const hc = c.parsed.y;
+              const {year, month} = months[i];
+              const maxHC = Math.max(...values);
+              const pctMax = maxHC ? Math.round(hc/maxHC*100) + '%' : '–';
+              const ms = buildMonthStats(year, month, baseData);
+              const lines = [
+                ` HC: ${hc} personas`,
+                ` % vs máx periodo: ${pctMax}`,
+                ` Altas del mes: +${ms.altas}`,
+                ` Bajas del mes: -${ms.bajas}`
+              ];
+              if (i > 0) {
+                const delta = hc - values[i-1];
+                const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '=';
+                lines.push(` Δ vs mes previo: ${arrow} ${Math.abs(delta)}`);
+              }
+              return lines;
+            }
+          }
+        }
+      },
       scales:{
         x:{grid:{color:d.grid}, ticks:{color:d.tick, font:{size:fs(9.5)}}},
         y:{grid:{color:d.grid}, ticks:{color:d.tick, font:{size:fs(9)}}, beginAtZero:false}
@@ -479,10 +568,30 @@ function renderHCSede(data) {
       plugins:{
         legend:{position:'bottom',labels:{color:d.label,font:{size:fs(10)},boxWidth:11,padding:10}},
         // Plugin custom para total encima de cada barra
-        tooltip:{callbacks:{
-          title: items => items[0].label,
-          label: item => ` ${item.dataset.label}: ${item.raw}`
-        }}
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            title: items => items[0].label,
+            label: item => {
+              const sede = item.dataset.label;
+              const {year, month} = months[item.dataIndex];
+              const eom = new Date(year, month+1, 0);
+              const rows = baseData.filter(r => norm(r['SEDE'])===sede && isActiveAt(r, eom));
+              const totalMes = totalesMes[item.dataIndex];
+              const pctMes = totalMes ? Math.round(rows.length/totalMes*100) + '%' : '–';
+              const edad = ttFmtNum(ttProm(rows,'EDAD'),' años');
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const mix = ttMixHM(rows);
+              const empDom = ttDom(rows,'EMPRESA');
+              const lines = [` ${sede}: ${rows.length} (${pctMes} del mes)`];
+              if (mix) lines.push(` ${mix}`);
+              if (edad) lines.push(` Edad prom: ${edad}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              if (empDom) lines.push(` Empresa top: ${empDom}`);
+              return lines;
+            }
+          }
+        }
       },
       scales:{
         x:{stacked:true, grid:{display:false}, ticks:{color:d.tick,font:{size:fs(9)}}},
@@ -547,7 +656,27 @@ function renderDonaSede(data) {
       },
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} (${pct(c.raw,total)})`}}
+        tooltip:{
+          padding:10, displayColors:false,
+          callbacks:{
+            label: c => {
+              const sede = c.label;
+              const rows = data.filter(r => norm(r['SEDE'])===sede);
+              const edad = ttFmtNum(ttProm(rows,'EDAD'),' años');
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const mix = ttMixHM(rows);
+              const empDom = ttDom(rows,'EMPRESA');
+              const areaDom = ttDom(rows,'AREA');
+              const lines = [` ${rows.length} colab. (${pct(rows.length,total)})`];
+              if (mix) lines.push(` ${mix}`);
+              if (edad) lines.push(` Edad prom: ${edad}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              if (empDom) lines.push(` Empresa top: ${empDom}`);
+              if (areaDom) lines.push(` Área top: ${areaDom}`);
+              return lines;
+            }
+          }
+        }
       },
       scales:{
         x:{grid:{display:false},ticks:{color:d.tick,font:{size:fs(10)}}},
@@ -584,7 +713,31 @@ function renderGenGenero(data) {
         if (!els.length) return;
         setCF('GENERO', els[0].datasetIndex === 0 ? 'H' : 'M');
       },
-      plugins:{legend:{position:'top',labels:{color:d.label,font:{size:fs(10)},boxWidth:10,padding:8}}},
+      plugins:{
+        legend:{position:'top',labels:{color:d.label,font:{size:fs(10)},boxWidth:10,padding:8}},
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const sede = c.label;
+              const gen = c.dataset.label;
+              const rows = data.filter(r => norm(r['SEDE'])===sede && norm(r['GENERO'])===gen);
+              const totalSede = data.filter(r => norm(r['SEDE'])===sede).length;
+              const pctSede = totalSede ? Math.round(rows.length/totalSede*100) + '%' : '–';
+              const edad = ttFmtNum(ttProm(rows,'EDAD'),' años');
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const genDom = ttDom(rows,'GENERACION');
+              const jerDom = ttDom(rows,'NIVEL_JERARQUIA');
+              const lines = [` ${gen} en ${sede}: ${rows.length} (${pctSede} de sede)`];
+              if (edad) lines.push(` Edad prom: ${edad}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              if (genDom) lines.push(` Generación top: ${genDom}`);
+              if (jerDom) lines.push(` Jerarquía top: ${jerDom}`);
+              return lines;
+            }
+          }
+        }
+      },
       scales:{
         x:{stacked:true,grid:{display:false},ticks:{color:d.tick,font:{size:fs(9)}}},
         y:{stacked:true,grid:{color:d.grid},ticks:{color:d.tick,font:{size:fs(9)}}}
@@ -594,9 +747,33 @@ function renderGenGenero(data) {
   destroyC('chDonaGenero');
   charts['chDonaGenero'] = new Chart(document.getElementById('chDonaGenero'), {
     type:'doughnut',
-    data:{labels:['H','M'],datasets:[{data:[h,m],backgroundColor:['#38bdf8','#f472b6'],borderWidth:0}]},
+    data:{labels:['Hombres','Mujeres'],datasets:[{data:[h,m],backgroundColor:['#38bdf8','#f472b6'],borderWidth:0}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
-      plugins:{legend:{display:false},datalabels:{display:false}}},
+      plugins:{
+        legend:{display:false},datalabels:{display:false},
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const isH = c.dataIndex === 0;
+              const rows = data.filter(r => norm(r['GENERO']) === (isH ? 'H' : 'M'));
+              const edad = ttFmtNum(ttProm(rows,'EDAD'),' años');
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const genDom = ttDom(rows,'GENERACION');
+              const sedeDom = ttDom(rows,'SEDE');
+              const puestoDom = ttDom(rows,'PUESTO_COLABORADOR');
+              const lines = [` ${rows.length} (${pct(rows.length,total)})`];
+              if (edad) lines.push(` Edad prom: ${edad}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              if (genDom) lines.push(` Generación top: ${genDom}`);
+              if (sedeDom) lines.push(` Sede top: ${sedeDom}`);
+              if (puestoDom) lines.push(` Puesto top: ${puestoDom}`);
+              return lines;
+            }
+          }
+        }
+      }
+    },
     plugins:[{id:'cg',afterDraw(chart){
       const {ctx,chartArea:{width,height,left,top}}=chart;
       ctx.save(); const cx=left+width/2,cy=top+height/2;
@@ -642,7 +819,31 @@ function renderGeneracion(data) {
         const lbl = gens[els[0].datasetIndex];
         if (lbl) setCF('GENERACION', lbl);
       },
-      plugins:{legend:{position:'bottom',labels:{color:d.label,font:{size:fs(10)},boxWidth:10,padding:9}}},
+      plugins:{
+        legend:{position:'bottom',labels:{color:d.label,font:{size:fs(10)},boxWidth:10,padding:9}},
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const sede = c.label;
+              const gen = Object.keys(C_GEN)[c.datasetIndex];
+              const rows = data.filter(r => norm(r['SEDE'])===sede && norm(r['GENERACION'])===gen);
+              const sedeTotal = totalesSede[c.dataIndex];
+              const pctSede = sedeTotal ? Math.round(rows.length/sedeTotal*100) + '%' : '–';
+              const mix = ttMixHM(rows);
+              const rango = ttRangoEdad(rows);
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const jerDom = ttDom(rows,'NIVEL_JERARQUIA');
+              const lines = [` ${gen.replace('GENERACION ','GEN ')}: ${rows.length} (${pctSede} de ${sede})`];
+              if (mix) lines.push(` ${mix}`);
+              if (rango) lines.push(` Edad: ${rango}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              if (jerDom) lines.push(` Jerarquía top: ${jerDom}`);
+              return lines;
+            }
+          }
+        }
+      },
       scales:{
         x:{stacked:true,max:100,grid:{color:d.grid},ticks:{color:d.tick,font:{size:fs(9)},callback:v=>v+'%'}},
         y:{stacked:true,grid:{display:false},ticks:{color:d.tick,font:{size:fs(10)}}}
@@ -702,7 +903,33 @@ function renderJerarquia(data) {
         const lbl = jers[els[0].datasetIndex];
         if (lbl) setCF('NIVEL_JERARQUIA', lbl);
       },
-      plugins:{legend:{position:'bottom',labels:{color:d.label,font:{size:fs(10)},boxWidth:10,padding:9}}},
+      plugins:{
+        legend:{position:'bottom',labels:{color:d.label,font:{size:fs(10)},boxWidth:10,padding:9}},
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const sede = c.label;
+              const jer = jers[c.datasetIndex];
+              const rows = data.filter(r => norm(r['SEDE'])===sede &&
+                (norm(r['NIVEL_JERARQUIA'])===jer ||
+                 (norm(r['NIVEL_JERARQUIA'])==='OPERATIVO' && jer==='OPERACION')));
+              const sedeTotal = totalesSede[c.dataIndex];
+              const pctSede = sedeTotal ? Math.round(rows.length/sedeTotal*100) + '%' : '–';
+              const mix = ttMixHM(rows);
+              const edad = ttFmtNum(ttProm(rows,'EDAD'),' años');
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const empDom = ttDom(rows,'EMPRESA');
+              const lines = [` ${jer}: ${rows.length} (${pctSede} de ${sede})`];
+              if (mix) lines.push(` ${mix}`);
+              if (edad) lines.push(` Edad prom: ${edad}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              if (empDom) lines.push(` Empresa top: ${empDom}`);
+              return lines;
+            }
+          }
+        }
+      },
       scales:{
         x:{stacked:true,max:100,grid:{color:d.grid},ticks:{color:d.tick,font:{size:fs(9)},callback:v=>v+'%'}},
         y:{stacked:true,grid:{display:false},ticks:{color:d.tick,font:{size:fs(10)}}}
@@ -762,7 +989,27 @@ function renderEmpresa(data) {
       },
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} (${pct(c.raw,total)})`}}
+        tooltip:{
+          padding:10, displayColors:false,
+          callbacks:{
+            label: c => {
+              const emp = c.label;
+              const rows = data.filter(r => norm(r['EMPRESA'])===emp);
+              const nSedes = new Set(rows.map(r => norm(r['SEDE'])).filter(Boolean)).size;
+              const mix = ttMixHM(rows);
+              const edad = ttFmtNum(ttProm(rows,'EDAD'),' años');
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const areaDom = ttDom(rows,'AREA');
+              const lines = [` ${rows.length} colab. (${pct(rows.length,total)})`];
+              if (nSedes) lines.push(` Sedes que cubre: ${nSedes}`);
+              if (mix) lines.push(` ${mix}`);
+              if (edad) lines.push(` Edad prom: ${edad}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              if (areaDom) lines.push(` Área top: ${areaDom}`);
+              return lines;
+            }
+          }
+        }
       },
       scales:{
         x:{grid:{display:false},ticks:{color:d.tick,font:{size:fs(10)}}},
@@ -813,7 +1060,24 @@ function renderNomina(data) {
       },
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} (${pct(c.raw,total)})`}}
+        tooltip:{
+          padding:10, displayColors:false,
+          callbacks:{
+            label: c => {
+              const nom = c.label;
+              const rows = data.filter(r => norm(r['ADMINISTRADORA DE NOMINA'])===nom);
+              const empresas = [...new Set(rows.map(r => norm(r['EMPRESA'])).filter(Boolean))];
+              const empList = empresas.length <= 2 ? empresas.join(', ') : `${empresas.length} empresas`;
+              const mix = ttMixHM(rows);
+              const antig = ttFmtNum(ttAntigProm(rows),' años');
+              const lines = [` ${rows.length} colab. (${pct(rows.length,total)})`];
+              if (empList) lines.push(` Empresas: ${empList}`);
+              if (mix) lines.push(` ${mix}`);
+              if (antig) lines.push(` Antig. prom: ${antig}`);
+              return lines;
+            }
+          }
+        }
       },
       scales:{
         x:{grid:{display:false},ticks:{color:d.tick,font:{size:fs(10)}}},
@@ -862,7 +1126,28 @@ function renderAntigüedad(data) {
       },
       plugins:{
         legend:{position:'bottom',labels:{color:d.label,font:{size:fs(10)},boxWidth:11,padding:10}},
-        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw}`}}
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const sede = c.label;
+              const rango = c.dataset.label;
+              const rows = data.filter(r => norm(r['SEDE'])===sede && getRangoAntig(r)===rango);
+              const totalSede = data.filter(r => norm(r['SEDE'])===sede).length;
+              const pctSede = totalSede ? Math.round(rows.length/totalSede*100) + '%' : '–';
+              const mix = ttMixHM(rows);
+              const edad = ttFmtNum(ttProm(rows,'EDAD'),' años');
+              const genDom = ttDom(rows,'GENERACION');
+              const jerDom = ttDom(rows,'NIVEL_JERARQUIA');
+              const lines = [` ${rango} en ${sede}: ${rows.length} (${pctSede})`];
+              if (mix) lines.push(` ${mix}`);
+              if (edad) lines.push(` Edad prom: ${edad}`);
+              if (genDom) lines.push(` Generación top: ${genDom}`);
+              if (jerDom) lines.push(` Jerarquía top: ${jerDom}`);
+              return lines;
+            }
+          }
+        }
       },
       scales:{
         x:{stacked:true,grid:{color:d.grid},ticks:{color:d.tick,font:{size:fs(9)}}},
