@@ -66,27 +66,18 @@
 
     <!-- DERECHA: fecha arriba, botones abajo -->
     <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:6px;flex-shrink:0;">
-      <span id="fechaHoy" style="font-size:9px;color:#2e4a66;font-family:'JetBrains Mono',monospace;letter-spacing:.3px;white-space:nowrap;">–</span>
+      <span id="fechaHoy" style="font-size:9px;color:var(--t2);font-family:'JetBrains Mono',monospace;letter-spacing:.3px;white-space:nowrap;">–</span>
       <div style="display:flex;gap:5px;align-items:center;">
         <button class="tbtn" id="cfClearBtn" onclick="clearAllCF()" style="display:none;background:rgba(99,102,241,0.15);border-color:#6366f1;color:#818cf8;" title="Limpiar filtros de gráficas">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
           Limpiar selección
           <span id="cfBadge" style="display:none;background:#6366f1;color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:800;"></span>
         </button>
-        <button class="tbtn" id="fontBtn" onclick="toggleFontSize()" title="Cambiar tamaño de texto">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <text x="2" y="17" style="font-size:12px;stroke:none;fill:currentColor;font-weight:700">A</text>
-            <text x="13" y="20" style="font-size:16px;stroke:none;fill:currentColor;font-weight:700">A</text>
-          </svg>
-          <span id="fontLbl">A+</span>
-        </button>
-        <button class="tbtn" id="refreshDataBtn" onclick="refreshData()" title="Relectura el archivo desde tu computadora" style="display:none;background:rgba(16,185,129,0.12);border-color:#10b981;color:#10b981;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-          </svg>
-          Actualizar
-        </button>
+        <div class="fontslider" title="Tamaño de texto">
+          <span class="fontslider-a fontslider-a-sm">A</span>
+          <input type="range" id="fontSlider" min="0" max="1" step="1" value="0" oninput="setFontSize(this.value)" aria-label="Tamaño de texto"/>
+          <span class="fontslider-a fontslider-a-lg">A</span>
+        </div>
         <button class="tbtn reset-btn" onclick="resetFiltros()" title="Limpia todos los filtros">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -109,13 +100,6 @@
           Cambiar archivo
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleChange(this)"/>
         </label>
-        <button class="tbtn" id="profileBtn" onclick="openProfileDrawer()" title="Buscar perfil de empleado">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="8" r="4"/>
-            <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
-          </svg>
-          Perfil empleado
-        </button>
         <button class="tbtn pri" id="pdfBtn" onclick="exportPDF()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -156,17 +140,27 @@
 
         <!-- KPIs -->
         <div id="krow">
-          <div class="kcard" draggable="true"><div class="drag-handle"><span></span><span></span><span></span></div>
+          <div class="kcard kpi-personal" draggable="true"><div class="drag-handle"><span></span><span></span><span></span></div>
             <div class="kval" id="kTotal">0</div>
             <div class="klbl">Total Personal</div>
           </div>
-          <div class="kcard" draggable="true"><div class="drag-handle"><span></span><span></span><span></span></div>
-            <div class="kval" id="kH" style="color:#60a5fa;">0</div>
+          <div class="kcard kpi-h" draggable="true"><div class="drag-handle"><span></span><span></span><span></span></div>
+            <div class="kval" id="kH">0</div>
             <div class="klbl">Total Hombres</div>
           </div>
-          <div class="kcard" draggable="true"><div class="drag-handle"><span></span><span></span><span></span></div>
-            <div class="kval" id="kM" style="color:#f472b6;">0</div>
+          <div class="kcard kpi-m" draggable="true"><div class="drag-handle"><span></span><span></span><span></span></div>
+            <div class="kval" id="kM">0</div>
             <div class="klbl">Total Mujeres</div>
+          </div>
+          <div class="kcard kpi-altas kcard-click" draggable="true" onclick="openListMode('altas')" title="Click para ver lista de altas">
+            <div class="drag-handle"><span></span><span></span><span></span></div>
+            <div class="kval" id="kAltas">0</div>
+            <div class="klbl">Altas <span id="kAltasYr">–</span></div>
+          </div>
+          <div class="kcard kpi-bajas kcard-click" draggable="true" onclick="openListMode('bajas')" title="Click para ver lista de bajas">
+            <div class="drag-handle"><span></span><span></span><span></span></div>
+            <div class="kval" id="kBajas">0</div>
+            <div class="klbl">Bajas <span id="kBajasYr">–</span></div>
           </div>
         </div>
 
@@ -262,11 +256,28 @@
           <div style="position:relative;height:220px;"><canvas id="chAntig"></canvas></div>
         </div>
 
+        <!-- ALTAS Y BAJAS POR MES -->
+        <div class="card" draggable="true"><div class="drag-handle"><span></span><span></span><span></span></div>
+          <div class="ctitle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+            Altas y Bajas por Mes <span id="chABYr" class="ctitle-yr"></span>
+          </div>
+          <div class="ab-chart-wrap"><canvas id="chAltasBajas"></canvas></div>
+          <div id="abPopover" class="hidden"></div>
+        </div>
+
       </div><!-- /scroll -->
     </div><!-- /main -->
 
     <!-- RIGHT PANEL -->
     <div id="right">
+      <button type="button" class="profile-btn-right" id="profileBtn" onclick="openProfileDrawer()" title="Buscar perfil de empleado">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
+        </svg>
+        <span>Perfil empleado</span>
+      </button>
       <div class="pcard"><div class="plbl2">Sede Predominante</div>
         <div class="pval" id="prSede">–</div><div class="psub" id="prSedeSub"></div></div>
       <div class="pcard"><div class="plbl2">Generación Predominante</div>
