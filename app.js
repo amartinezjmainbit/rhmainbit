@@ -24,8 +24,8 @@ let rawData = [], charts = {}, theme = 'dark', lastFile = null, fileHandle = nul
 // ══ FECHA AUTOMÁTICA ══
 function setFecha() {
   const now = new Date();
-  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-  const txt = `Actualizado: ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()}`;
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const txt = `${now.getDate()} de ${meses[now.getMonth()]} de ${now.getFullYear()}`;
   const el = document.getElementById('fechaHoy');
   if (el) el.textContent = txt;
 }
@@ -2057,6 +2057,441 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') {
       const dr = document.getElementById('profileDrawer');
       if (dr && dr.classList.contains('open')) closeProfileDrawer();
+      const m = document.getElementById('appLauncherMenu');
+      if (m && !m.classList.contains('hidden')) closeAppLauncher();
     }
   });
 });
+
+// ══════════════════════════════════════════════════════════
+// APP LAUNCHER + SISTEMA DE VISTAS
+// ══════════════════════════════════════════════════════════
+let currentView = 'dashboard';
+
+function toggleAppLauncher(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('appLauncherMenu');
+  if (!m) return;
+  m.classList.toggle('hidden');
+}
+function closeAppLauncher() {
+  const m = document.getElementById('appLauncherMenu');
+  if (m) m.classList.add('hidden');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('appLauncherMenu');
+  const btn = document.getElementById('appLauncherBtn');
+  if (!wrap || wrap.classList.contains('hidden')) return;
+  if (!wrap.contains(e.target) && !btn.contains(e.target)) closeAppLauncher();
+});
+
+function switchView(view) {
+  if (!rawData.length && view !== 'dashboard') {
+    alert('Carga primero un archivo Excel.');
+    closeAppLauncher();
+    return;
+  }
+  currentView = view;
+  const scroll = document.getElementById('scroll');
+  const va = document.getElementById('viewAltas');
+  const vr = document.getElementById('viewRotacion');
+  scroll.classList.add('hidden');
+  va.classList.add('hidden');
+  vr.classList.add('hidden');
+  if (view === 'dashboard') scroll.classList.remove('hidden');
+  else if (view === 'altas') { va.classList.remove('hidden'); renderAltasView(); }
+  else if (view === 'rotacion') { vr.classList.remove('hidden'); renderRotacionView(); }
+  // active state en menu
+  document.querySelectorAll('.applauncher-app').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-view') === view);
+  });
+  closeAppLauncher();
+}
+
+// ══════════════════════════════════════════════════════════
+// HELPERS COMPARTIDOS (altas/bajas/rotación)
+// ══════════════════════════════════════════════════════════
+function rxYear(r, field) {
+  const v = field === 'FECHA_INGRESO' ? (r[field] || r['Personalizado']) : r[field];
+  const d = pDate(v);
+  return d ? d.getFullYear() : null;
+}
+function rxMonth(r, field) {
+  const v = field === 'FECHA_INGRESO' ? (r[field] || r['Personalizado']) : r[field];
+  const d = pDate(v);
+  return d ? d.getMonth() : null;
+}
+function altasYear(rows, year) {
+  return rows.filter(r => rxYear(r,'FECHA_INGRESO') === year);
+}
+function bajasYear(rows, year) {
+  return rows.filter(r => rxYear(r,'FECHA_BAJA') === year);
+}
+function hcPromMensual(rows, year) {
+  let sum = 0;
+  for (let m = 0; m < 12; m++) {
+    const eom = new Date(year, m + 1, 0);
+    sum += rows.filter(r => isActiveAt(r, eom)).length;
+  }
+  return sum / 12;
+}
+function getTipoBaja(r) {
+  const cols = ['TIPO_BAJA','TIPO DE BAJA','TIPO BAJA','MOTIVO_BAJA','MOTIVO DE BAJA','MOTIVO BAJA','RAZON_BAJA','RAZON BAJA','RAZON DE BAJA'];
+  for (const c of cols) { if (r[c]) return norm(r[c]); }
+  return null;
+}
+function isVoluntaria(r) {
+  const t = getTipoBaja(r);
+  if (!t) return null;
+  return /VOLUNTAR|RENUNCIA/.test(t);
+}
+function isInvoluntaria(r) {
+  const t = getTipoBaja(r);
+  if (!t) return null;
+  return /INVOLUNTAR|DESPIDO|TERMIN|RESCISION/.test(t);
+}
+function hasTipoBajaData(rows) {
+  return rows.some(r => getTipoBaja(r) != null);
+}
+function yearsConDatos() {
+  const years = new Set();
+  for (const r of rawData) {
+    const yi = rxYear(r,'FECHA_INGRESO'); if (yi) years.add(yi);
+    const yb = rxYear(r,'FECHA_BAJA'); if (yb) years.add(yb);
+  }
+  return [...years].sort((a,b) => a - b);
+}
+
+// ══════════════════════════════════════════════════════════
+// VISTA ALTAS
+// ══════════════════════════════════════════════════════════
+function renderAltasView() {
+  renderAltasAnual();
+  renderAltasMensual();
+  // Llenar select de años para tabla
+  const sel = document.getElementById('altasTablaYr');
+  const years = yearsConDatos();
+  const curYr = new Date().getFullYear();
+  sel.innerHTML = years.map(y => `<option value="${y}" ${y===curYr?'selected':''}>${y}</option>`).join('');
+  // Listener buscador (una sola vez)
+  const q = document.getElementById('altasTablaQ');
+  if (!q._wired) {
+    q._wired = true;
+    q.addEventListener('input', () => renderAltasTabla());
+  }
+  renderAltasTabla();
+}
+
+function renderAltasAnual() {
+  const d = gd();
+  const SEDES = [...new Set(rawData.map(r => norm(r['SEDE'])).filter(Boolean))].sort();
+  const curYr = new Date().getFullYear();
+  const years = [curYr - 2, curYr - 1, curYr];
+  const colors = ['#A78BFA','#22D3EE','#10B981']; // 3 colores distintos
+  destroyC('chAltasAnual');
+  charts['chAltasAnual'] = new Chart(document.getElementById('chAltasAnual'), {
+    type:'bar',
+    data:{
+      labels: SEDES,
+      datasets: years.map((y, i) => ({
+        label: String(y),
+        backgroundColor: colors[i],
+        borderRadius: 4, borderSkipped: false,
+        data: SEDES.map(s => altasYear(rawData.filter(r => norm(r['SEDE'])===s), y).length),
+        datalabels:{ color: d.txt, font:{ size: fs(10), weight:'700'}, anchor:'end', align:'top', offset: 2, formatter: v => v > 0 ? v : '' }
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top: 24 } },
+      plugins:{
+        legend:{ position:'top', align:'end', labels:{ color: d.label, font:{ size: fs(10)}, boxWidth: 11, padding: 10 } },
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const sede = c.label;
+              const yr = years[c.datasetIndex];
+              const n = c.parsed.y;
+              const prevYr = years[c.datasetIndex - 1];
+              const lines = [` ${yr} en ${sede}: ${n} altas`];
+              if (prevYr) {
+                const prev = altasYear(rawData.filter(r => norm(r['SEDE'])===sede), prevYr).length;
+                if (prev > 0) {
+                  const delta = ((n - prev) / prev) * 100;
+                  const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '=';
+                  lines.push(` ${arrow} ${Math.abs(delta).toFixed(0)}% vs ${prevYr}`);
+                }
+              }
+              return lines;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color: d.tick, font:{ size: fs(10)} } },
+        y:{ grid:{ color: d.grid }, ticks:{ color: d.tick, font:{ size: fs(9), precision: 0 } }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderAltasMensual() {
+  const d = gd();
+  const yr = new Date().getFullYear();
+  setText('altasMesYr', yr);
+  const SEDES = [...new Set(rawData.map(r => norm(r['SEDE'])).filter(Boolean))].sort();
+  const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  // 12 datasets (uno por mes), cada uno con valores por sede
+  const palette = ['#3B82F6','#8B5CF6','#EC4899','#F59E0B','#10B981','#06B6D4','#F87171','#A78BFA','#FB923C','#22D3EE','#34D399','#FBBF24'];
+  destroyC('chAltasMensual');
+  charts['chAltasMensual'] = new Chart(document.getElementById('chAltasMensual'), {
+    type:'bar',
+    data:{
+      labels: SEDES,
+      datasets: MESES.map((m, mi) => ({
+        label: `${yr} · ${m}`,
+        backgroundColor: palette[mi],
+        borderRadius: 2, borderSkipped: false,
+        data: SEDES.map(s => altasYear(rawData.filter(r => norm(r['SEDE'])===s), yr).filter(r => rxMonth(r,'FECHA_INGRESO') === mi).length),
+        datalabels:{ display: false }
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'bottom', labels:{ color: d.label, font:{ size: fs(9)}, boxWidth: 10, padding: 6 } },
+        tooltip:{ padding:8, displayColors:true,
+          callbacks:{ label: c => ` ${c.dataset.label}: ${c.parsed.y}` }
+        }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color: d.tick, font:{ size: fs(10)} } },
+        y:{ grid:{ color: d.grid }, ticks:{ color: d.tick, font:{ size: fs(9), precision: 0 } }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderAltasTabla() {
+  const yr = Number(document.getElementById('altasTablaYr').value);
+  const q = pdNorm(document.getElementById('altasTablaQ').value || '');
+  let rows = altasYear(rawData, yr);
+  if (q && q.length >= 2) {
+    const tokens = q.split(/\s+/).filter(Boolean);
+    rows = rows.filter(r => {
+      const hay = pdNorm(
+        (r['NOMBRE(S)']||'') + ' ' + (r['A_PATERNO']||'') + ' ' + (r['A_MATERNO']||'') +
+        ' ' + (r['PUESTO_COLABORADOR']||'') + ' ' + (r['SEDE']||'') + ' ' + (r['EMPRESA']||'')
+      );
+      return tokens.every(t => hay.includes(t));
+    });
+  }
+  rows.sort((a,b) => {
+    const da = pDate(a['FECHA_INGRESO'] || a['Personalizado']);
+    const db = pDate(b['FECHA_INGRESO'] || b['Personalizado']);
+    return (db||0) - (da||0);
+  });
+  setText('altasTablaCount', `(${rows.length})`);
+  const t = document.getElementById('altasTabla');
+  if (!rows.length) {
+    t.innerHTML = '<thead><tr><th>Nombre</th><th>Puesto</th><th>Sede</th><th>Empresa</th><th>Fecha ingreso</th></tr></thead><tbody><tr class="empty-row"><td colspan="5">Sin altas para los criterios actuales.</td></tr></tbody>';
+    return;
+  }
+  const body = rows.map(r => {
+    const i = rawData.indexOf(r);
+    const full = pdFullName(r).replace(/</g,'&lt;');
+    const puesto = (r['PUESTO_COLABORADOR']||'—').toString().replace(/</g,'&lt;');
+    const sede = (r['SEDE']||'—').toString().replace(/</g,'&lt;');
+    const emp = (r['EMPRESA']||'—').toString().replace(/</g,'&lt;');
+    const fi = pdFmtDate(r['FECHA_INGRESO'] || r['Personalizado']) || '—';
+    return `<tr data-idx="${i}"><td>${full}</td><td>${puesto}</td><td>${sede}</td><td>${emp}</td><td>${fi}</td></tr>`;
+  }).join('');
+  t.innerHTML = `<thead><tr><th>Nombre</th><th>Puesto</th><th>Sede</th><th>Empresa</th><th>Fecha ingreso</th></tr></thead><tbody>${body}</tbody>`;
+  t.querySelectorAll('tbody tr[data-idx]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const idx = Number(tr.getAttribute('data-idx'));
+      pdRenderProfile(rawData[idx], idx);
+      document.getElementById('profileBackdrop').classList.add('open');
+      const dr = document.getElementById('profileDrawer');
+      dr.classList.add('open');
+      dr.setAttribute('aria-hidden','false');
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// VISTA ROTACIÓN
+// ══════════════════════════════════════════════════════════
+function renderRotacionView() {
+  renderRotacionSede();
+  renderRotacionEmpresa();
+  // Filtros de tabla líder
+  const selSede = document.getElementById('rotLiderSede');
+  const selYr = document.getElementById('rotLiderYr');
+  const SEDES = [...new Set(rawData.map(r => norm(r['SEDE'])).filter(Boolean))].sort();
+  selSede.innerHTML = SEDES.map(s => `<option value="${s}">${s}</option>`).join('');
+  const years = yearsConDatos();
+  const curYr = new Date().getFullYear();
+  selYr.innerHTML = years.map(y => `<option value="${y}" ${y===curYr?'selected':''}>${y}</option>`).join('');
+  renderRotacionLider();
+}
+
+function renderRotacionSede() {
+  const d = gd();
+  const SEDES = [...new Set(rawData.map(r => norm(r['SEDE'])).filter(Boolean))].sort();
+  const curYr = new Date().getFullYear();
+  const years = [curYr - 1, curYr];
+  const hasVOLINV = hasTipoBajaData(rawData);
+  // labels: cada sede × año
+  const labels = [];
+  SEDES.forEach(s => years.forEach(y => labels.push(`${s} ${y}`)));
+  const compute = (s, y, kind) => {
+    const rows = rawData.filter(r => norm(r['SEDE'])===s);
+    const bajas = bajasYear(rows, y);
+    if (kind === 'vol') return bajas.filter(r => isVoluntaria(r) === true).length;
+    if (kind === 'inv') return bajas.filter(r => isInvoluntaria(r) === true).length;
+    if (kind === 'desc') return bajas.filter(r => isVoluntaria(r) == null && isInvoluntaria(r) == null).length;
+    return bajas.length;
+  };
+  const datasets = hasVOLINV ? [
+    { label:'INV', backgroundColor:'#10B981', data: labels.map(l => { const [s,y] = l.split(' '); return compute(s, Number(y),'inv'); }),
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'VOL', backgroundColor:'#A78BFA', data: labels.map(l => { const [s,y] = l.split(' '); return compute(s, Number(y),'vol'); }),
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'Sin clasificar', backgroundColor:'#94A3B8', data: labels.map(l => { const [s,y] = l.split(' '); return compute(s, Number(y),'desc'); }),
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ] : [
+    { label:'Bajas', backgroundColor:'#A78BFA', data: labels.map(l => { const [s,y] = l.split(' '); return compute(s, Number(y),'total'); }),
+      datalabels:{ color:'#fff', font:{size:fs(11),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ];
+  destroyC('chRotSede');
+  charts['chRotSede'] = new Chart(document.getElementById('chRotSede'), {
+    type:'bar',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top: 24 } },
+      plugins:{
+        legend:{ position:'top', align:'end', labels:{ color: d.label, font:{ size: fs(10)}, boxWidth: 11, padding: 10 } },
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            title: items => items[0].label,
+            label: c => {
+              const lbl = c.label;
+              const [s, y] = lbl.split(' ');
+              const yr = Number(y);
+              const rows = rawData.filter(r => norm(r['SEDE'])===s);
+              const totalBajas = bajasYear(rows, yr).length;
+              const hcProm = hcPromMensual(rows, yr);
+              const rot = hcProm > 0 ? (totalBajas / hcProm * 100).toFixed(1) : '0';
+              return [` ${c.dataset.label}: ${c.parsed.y}`, ` Rotación total: ${rot}%`, ` HC prom: ${hcProm.toFixed(1)}`];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:{ color: d.tick, font:{ size: fs(9)}, autoSkip:false, maxRotation:45, minRotation:35 } },
+        y:{ stacked:true, grid:{ color: d.grid }, ticks:{ color: d.tick, font:{ size: fs(9), precision: 0 } }, beginAtZero:true }
+      }
+    }
+  });
+}
+
+function renderRotacionEmpresa() {
+  const d = gd();
+  const curYr = new Date().getFullYear();
+  const EMPRESAS = [...new Set(rawData.map(r => norm(r['EMPRESA'])).filter(Boolean))].sort();
+  const hasVOLINV = hasTipoBajaData(rawData);
+  const compute = (e, kind) => {
+    const rows = rawData.filter(r => norm(r['EMPRESA'])===e);
+    const bajas = bajasYear(rows, curYr);
+    if (kind === 'vol') return bajas.filter(r => isVoluntaria(r) === true).length;
+    if (kind === 'inv') return bajas.filter(r => isInvoluntaria(r) === true).length;
+    if (kind === 'desc') return bajas.filter(r => isVoluntaria(r) == null && isInvoluntaria(r) == null).length;
+    return bajas.length;
+  };
+  const datasets = hasVOLINV ? [
+    { label:'INV', backgroundColor:'#10B981', data: EMPRESAS.map(e => compute(e,'inv')),
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'VOL', backgroundColor:'#A78BFA', data: EMPRESAS.map(e => compute(e,'vol')),
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'Sin clasificar', backgroundColor:'#94A3B8', data: EMPRESAS.map(e => compute(e,'desc')),
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ] : [
+    { label:'Bajas', backgroundColor:'#A78BFA', data: EMPRESAS.map(e => compute(e,'total')),
+      datalabels:{ color:'#fff', font:{size:fs(11),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ];
+  destroyC('chRotEmpresa');
+  charts['chRotEmpresa'] = new Chart(document.getElementById('chRotEmpresa'), {
+    type:'bar',
+    data:{ labels: EMPRESAS, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top: 24 } },
+      plugins:{
+        legend:{ position:'top', align:'end', labels:{ color: d.label, font:{ size: fs(10)}, boxWidth: 11, padding: 10 } },
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const e = c.label;
+              const rows = rawData.filter(r => norm(r['EMPRESA'])===e);
+              const totalBajas = bajasYear(rows, curYr).length;
+              const hcProm = hcPromMensual(rows, curYr);
+              const rot = hcProm > 0 ? (totalBajas / hcProm * 100).toFixed(1) : '0';
+              return [` ${c.dataset.label}: ${c.parsed.y}`, ` Rotación: ${rot}%`, ` HC prom: ${hcProm.toFixed(1)}`];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:{ color: d.tick, font:{ size: fs(10)} } },
+        y:{ stacked:true, grid:{ color: d.grid }, ticks:{ color: d.tick, font:{ size: fs(9), precision: 0 } }, beginAtZero:true }
+      }
+    }
+  });
+}
+
+function renderRotacionLider() {
+  const sede = document.getElementById('rotLiderSede').value;
+  const yr = Number(document.getElementById('rotLiderYr').value);
+  if (!sede || !yr) return;
+  const t = document.getElementById('rotTablaLider');
+  const hasVOLINV = hasTipoBajaData(rawData);
+  // Agrupar bajas por JEFE_DIRECTO dentro de la sede
+  const baseSede = rawData.filter(r => norm(r['SEDE']) === sede);
+  const bajas = bajasYear(baseSede, yr);
+  const grupos = {};
+  for (const r of bajas) {
+    const jefe = (r['JEFE_DIRECTO'] || '').toString().trim();
+    if (!jefe) continue;
+    if (!grupos[jefe]) grupos[jefe] = { jefe, inv:0, vol:0, desc:0, total:0 };
+    if (isInvoluntaria(r) === true) grupos[jefe].inv++;
+    else if (isVoluntaria(r) === true) grupos[jefe].vol++;
+    else grupos[jefe].desc++;
+    grupos[jefe].total++;
+  }
+  // HC PROM por líder: promedio mensual de empleados activos cuyo jefe directo coincida
+  Object.values(grupos).forEach(g => {
+    const rowsLider = baseSede.filter(r => (r['JEFE_DIRECTO']||'').toString().trim() === g.jefe);
+    g.hcProm = hcPromMensual(rowsLider, yr);
+    g.rot = g.hcProm > 0 ? (g.total / g.hcProm * 100) : 0;
+  });
+  const filas = Object.values(grupos).sort((a,b) => b.rot - a.rot);
+  if (!filas.length) {
+    t.innerHTML = `<thead><tr><th>Líder</th>${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">HC PROM</th><th class="num">Rotación</th></tr></thead><tbody><tr class="empty-row"><td colspan="${hasVOLINV?6:4}">Sin bajas registradas en ${sede} para ${yr}.</td></tr></tbody>`;
+    return;
+  }
+  const head = `<thead><tr><th>Líder</th>${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">HC PROM</th><th class="num">Rotación</th></tr></thead>`;
+  const body = filas.map(g => {
+    const lider = g.jefe.replace(/</g,'&lt;');
+    const cols = hasVOLINV
+      ? `<td class="num">${g.inv}</td><td class="num">${g.vol}</td>`
+      : '';
+    return `<tr><td>${lider}</td>${cols}<td class="num">${g.total}</td><td class="num">${g.hcProm.toFixed(1)}</td><td class="num pct">${g.rot.toFixed(0)}%</td></tr>`;
+  }).join('');
+  t.innerHTML = head + `<tbody>${body}</tbody>`;
+}
+
