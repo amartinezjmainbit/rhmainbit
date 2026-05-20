@@ -181,7 +181,34 @@ canvas{cursor:pointer;}
 .pill-alta .pnum{color:#10b981;font-size:18px;}
 
 /* MAIN */
-#main{flex:1;display:flex;overflow:hidden;}
+#main{flex:1;display:flex;overflow:hidden;position:relative;}
+
+/* LOADING OVERLAY (vistas/filtros pesados) */
+.loading-overlay{
+  position:absolute;inset:0;z-index:50;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(6,16,30,.55);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  transition:opacity .15s ease;
+}
+.loading-overlay.hidden{display:none;}
+.loading-card{
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:22px 32px;border-radius:14px;
+  background:linear-gradient(180deg,rgba(14,36,71,.95),rgba(6,16,30,.95));
+  border:1px solid var(--border);
+  box-shadow:0 10px 40px rgba(0,0,0,.45);
+}
+.loading-spinner{
+  width:36px;height:36px;border-radius:50%;
+  border:3px solid rgba(91,163,208,.18);
+  border-top-color:var(--accent,#5BA3D0);
+  animation:loadingSpin .8s linear infinite;
+}
+@keyframes loadingSpin{to{transform:rotate(360deg);}}
+.loading-label{
+  font-size:12px;font-weight:600;letter-spacing:.4px;
+  color:var(--t1);text-transform:uppercase;
+}
 
 /* SCROLL AREA */
 #scroll{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
@@ -381,6 +408,16 @@ canvas{cursor:pointer;}
 .pd-res-meta{font-size:9.5px;color:var(--t2);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;}
 .pd-res-empty{padding:14px 16px;color:var(--t2);font-size:11px;text-align:center;}
+.pd-chip-mini{
+  font-size:8.5px;font-weight:800;padding:3px 8px;border-radius:99px;
+  text-transform:uppercase;letter-spacing:.4px;flex-shrink:0;line-height:1.1;
+}
+.pd-chip-mini.ok{
+  background:rgba(16,185,129,0.18);color:#10B981;border:1px solid rgba(16,185,129,0.40);
+}
+.pd-chip-mini.off{
+  background:rgba(239,68,68,0.16);color:#F87171;border:1px solid rgba(239,68,68,0.40);
+}
 .pd-body{flex:1;overflow-y:auto;padding:14px 16px 24px;}
 .pd-body::-webkit-scrollbar{width:5px;}
 .pd-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
@@ -541,6 +578,50 @@ canvas{cursor:pointer;}
 [data-fontlg] .pd-field-val{font-size:13px!important;}
 [data-fontlg] .pd-acc-title{font-size:12.5px!important;}
 
+/* ══ TOAST (feedback de carga) ══ */
+.toast-host{
+  position:fixed;top:90px;right:20px;z-index:9999;
+  display:flex;flex-direction:column;gap:8px;
+  pointer-events:none;
+}
+.toast{
+  background:var(--bg2);border:1px solid var(--border);border-left-width:3px;
+  border-radius:8px;padding:12px 16px;min-width:240px;max-width:380px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  color:var(--t1);font-size:11.5px;line-height:1.45;
+  transform:translateX(0);transition:transform .35s, opacity .35s;
+  pointer-events:auto;
+}
+.toast.success{border-left-color:#10B981;}
+.toast.warn{border-left-color:#F59E0B;}
+.toast.error{border-left-color:#EF4444;}
+.toast.info{border-left-color:var(--accent);}
+.toast b{font-weight:800;}
+.toast small{color:var(--t2);font-size:10px;}
+.toast .toast-warn{color:#F59E0B;font-weight:700;}
+.toast-x{
+  position:absolute;top:6px;right:8px;background:transparent;border:none;
+  color:var(--t3);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;
+}
+.toast-x:hover{color:var(--danger);}
+.toast{position:relative;padding-right:30px;}
+.toast.toast-out{transform:translateX(20px);opacity:0;}
+
+/* ══ DATA CHIP (archivos cargados) ══ */
+.data-chip{
+  display:inline-flex;align-items:center;gap:5px;padding:3px 8px;flex-shrink:0;
+  background:var(--bg2);border:1px solid var(--border);border-radius:99px;
+}
+.data-chip-item{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:700;color:var(--t1);
+  font-family:'JetBrains Mono',monospace;letter-spacing:.3px;
+}
+.data-chip-item svg{width:11px;height:11px;color:var(--accent);}
+.data-chip-item.off{color:var(--t3);}
+.data-chip-item.off svg{color:var(--t3);}
+.data-chip-item + .data-chip-item{padding-left:6px;border-left:1px solid var(--border);}
+
 /* ══ APP LAUNCHER (waffle) ══ */
 .applauncher-wrap{position:relative;flex-shrink:0;}
 .applauncher-btn{
@@ -603,6 +684,13 @@ canvas{cursor:pointer;}
   text-transform:uppercase;letter-spacing:.7px;
 }
 .appview-title svg{width:20px;height:20px;color:var(--accent);}
+.appview-yrwrap{
+  margin-left:auto;display:flex;align-items:center;gap:8px;
+}
+.appview-yrlbl{
+  font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:700;
+}
+.appview-yrwrap .fsel{width:auto;min-width:90px;}
 .appview-body{display:flex;flex-direction:column;gap:12px;}
 .chart-h260{position:relative;height:260px;}
 .chart-h280{position:relative;height:280px;}

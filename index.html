@@ -93,9 +93,12 @@
         <select class="fsel" id="fAntig"><option value="">Todas</option></select></div>
     </div>
 
-    <!-- DERECHA: fecha arriba, botones abajo -->
+    <!-- DERECHA: fecha + chip arriba (en línea), botones abajo -->
     <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:6px;flex-shrink:0;">
-      <span id="fechaHoy" style="font-size:9px;color:var(--t2);font-family:'JetBrains Mono',monospace;letter-spacing:.3px;white-space:nowrap;">–</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="fechaHoy" style="font-size:9px;color:var(--t2);font-family:'JetBrains Mono',monospace;letter-spacing:.3px;white-space:nowrap;">–</span>
+        <div id="dataChip" class="data-chip hidden" title="Archivos cargados"></div>
+      </div>
       <div style="display:flex;gap:5px;align-items:center;">
         <button class="tbtn" id="cfClearBtn" onclick="clearAllCF()" style="display:none;background:rgba(99,102,241,0.15);border-color:#6366f1;color:#818cf8;" title="Limpiar filtros de gráficas">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
@@ -121,13 +124,19 @@
           </svg>
           <span id="themeLbl">Claro</span>
         </button>
-        <label class="tbtn" style="cursor:pointer;" onclick="event.preventDefault();openFilePicker();">
+        <label class="tbtn" title="Cargar archivo de empleados activos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          Cambiar archivo
-          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleChange(this)"/>
+          Activos
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleChange(this,'activos')"/>
+        </label>
+        <label class="tbtn" title="Cargar archivo de bajas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>
+          </svg>
+          Bajas
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleChange(this,'bajas')"/>
         </label>
         <button class="tbtn pri" id="pdfBtn" onclick="exportPDF()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -165,6 +174,13 @@
 
     <!-- MAIN -->
     <div id="main">
+      <!-- Overlay de carga (mostrar al cambiar de vista o filtros pesados) -->
+      <div id="loadingOverlay" class="loading-overlay hidden" aria-hidden="true">
+        <div class="loading-card">
+          <div class="loading-spinner"></div>
+          <div class="loading-label" id="loadingLabel">Cargando…</div>
+        </div>
+      </div>
       <div id="scroll">
 
         <!-- KPIs -->
@@ -340,14 +356,18 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 4 21 11 14 11"/></svg>
             Rotación
           </div>
+          <div class="appview-yrwrap">
+            <label class="appview-yrlbl">Año</label>
+            <select id="rotYrGlobal" class="fsel" onchange="refreshRotacionYear()" title="Año de análisis" aria-label="Año de análisis"></select>
+          </div>
         </div>
         <div class="appview-body">
           <div class="card">
-            <div class="ctitle">Rotación por Sede — Comparativo Anual</div>
+            <div class="ctitle">Rotación por Sede — <span id="rotSedeYrLbl" class="ctitle-yr"></span></div>
             <div class="ab-chart-wrap chart-h300"><canvas id="chRotSede"></canvas></div>
           </div>
           <div class="card">
-            <div class="ctitle">Rotación por Empresa</div>
+            <div class="ctitle">Rotación por Empresa — <span id="rotEmpYrLbl" class="ctitle-yr"></span></div>
             <div class="ab-chart-wrap chart-h260"><canvas id="chRotEmpresa"></canvas></div>
           </div>
           <div class="card">
@@ -357,6 +377,21 @@
               <select id="rotLiderYr" class="fsel" onchange="renderRotacionLider()" title="Año de rotación por líder" aria-label="Año de rotación por líder"></select>
             </div>
             <div class="appview-tablewrap"><table class="appview-table" id="rotTablaLider"></table></div>
+          </div>
+          <div class="card">
+            <div class="ctitle">Detalle de Bajas <span id="rotBajasCount" class="ctitle-yr"></span></div>
+            <div class="appview-tabletools">
+              <input type="text" id="rotBajasQ" placeholder="Buscar por nombre, sede, líder, motivo..."/>
+              <select id="rotBajasSede" class="fsel" onchange="renderBajasTabla()" title="Filtrar bajas por sede" aria-label="Filtrar bajas por sede"></select>
+              <select id="rotBajasYr" class="fsel" onchange="renderBajasTabla()" title="Filtrar bajas por año" aria-label="Filtrar bajas por año"></select>
+              <select id="rotBajasTipo" class="fsel" onchange="renderBajasTabla()" title="Filtrar por tipo VOL/INV" aria-label="Filtrar por tipo">
+                <option value="">Todos los tipos</option>
+                <option value="VOL">Voluntaria</option>
+                <option value="INV">Involuntaria</option>
+              </select>
+              <button type="button" class="appview-back" onclick="clearBajasFilters()" title="Limpiar filtros de la tabla">Limpiar</button>
+            </div>
+            <div class="appview-tablewrap"><table class="appview-table" id="rotBajasTabla"></table></div>
           </div>
         </div>
       </div>
