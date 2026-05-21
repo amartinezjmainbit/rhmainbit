@@ -757,11 +757,11 @@ function destroyC(id) { if(charts[id]){try{charts[id].destroy();}catch(e){} dele
 
 // ══ RANGO ANTIGÜEDAD ══
 function getRangoAntig(r) {
-  // Check dedicated columns first
-  const cols = ['RANGO_ANTIGUEDAD','RANGO ANTIGÜEDAD','RANGO ANTIGUEDAD','Rango Antigüedad','RANGO_ANTIG'];
-  for (const c of cols) { if (r[c]) return norm(r[c]); }
-  // Calculate from FECHA_INGRESO
-  const ing = pDate(r['FECHA_INGRESO'] || r['Personalizado']);
+  // Check dedicated columns first (tolerante a variantes con rxGet)
+  const rango = rxGet(r, 'RANGO_ANTIGUEDAD', 'RANGO ANTIGÜEDAD', 'RANGO ANTIGUEDAD', 'Rango Antigüedad', 'RANGO_ANTIG');
+  if (rango) return norm(rango);
+  // Calcular desde FECHA_INGRESO (usa cache _fi para velocidad y soporta ambos formatos de archivo)
+  const ing = rxFechaIngreso(r);
   if (!ing) return null;
   const years = (new Date() - ing) / (1000 * 60 * 60 * 24 * 365.25);
   if (years < 1)   return '0 AÑOS';
@@ -2074,10 +2074,46 @@ function renderAltasBajas() {
   const d = gd();
   const yr = new Date().getFullYear();
   setText('chABYr', yr);
-  const base = abGetFiltered();
-  const months = Array.from({length:12}, (_,m) => m);
-  const altas = months.map(m => base.filter(r => abYearOf(r,'FECHA_INGRESO')===yr && abMonthOf(r,'FECHA_INGRESO')===m).length);
-  const bajas = months.map(m => base.filter(r => abYearOf(r,'FECHA_BAJA')===yr && abMonthOf(r,'FECHA_BAJA')===m).length);
+
+  // Filtros del topbar — aplicables a ambos archivos
+  const fS = document.getElementById('fSede').value;
+  const fG = document.getElementById('fGen').value;
+  const fE = document.getElementById('fEmp').value;
+  const fN = document.getElementById('fGenero').value;
+  const fA = document.getElementById('fAntig').value;
+  const matchFilters = (r) => {
+    if (fS && rxSede(r) !== fS) return false;
+    if (fG && rxGeneracion(r) !== fG) return false;
+    if (fE && rxEmpresa(r) !== fE) return false;
+    if (fN && norm(rxGet(r, 'GENERO')) !== fN) return false;
+    if (fA && getRangoAntig(r) !== fA) return false;
+    return true;
+  };
+
+  // ALTAS: combinar rawData + bajasData (dedup por ID_C) por FECHA_INGRESO del año
+  const altas = new Array(12).fill(0);
+  const seenAltas = new Set();
+  const considerAlta = (r) => {
+    if (!matchFilters(r)) return;
+    const fi = rxFechaIngreso(r);
+    if (!fi || fi.getFullYear() !== yr) return;
+    const k = String(rxId(r) || rxNombre(r));
+    if (seenAltas.has(k)) return;
+    seenAltas.add(k);
+    altas[fi.getMonth()]++;
+  };
+  rawData.forEach(considerAlta);
+  bajasData.forEach(considerAlta);
+
+  // BAJAS: solo desde el archivo de bajasData (rawData ya no contiene bajas)
+  const bajas = new Array(12).fill(0);
+  for (const r of bajasData) {
+    if (!matchFilters(r)) continue;
+    const fb = rxFechaBaja(r);
+    if (!fb || fb.getFullYear() !== yr) continue;
+    bajas[fb.getMonth()]++;
+  }
+
   const lbls = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   destroyC('chAltasBajas');
@@ -2135,22 +2171,60 @@ function abShowPopover(monthIdx) {
   const pop = document.getElementById('abPopover');
   if (!pop) return;
   const yr = new Date().getFullYear();
-  const base = abGetFiltered();
   const lbls = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const altas = base.filter(r => abYearOf(r,'FECHA_INGRESO')===yr && abMonthOf(r,'FECHA_INGRESO')===monthIdx);
-  const bajas = base.filter(r => abYearOf(r,'FECHA_BAJA')===yr && abMonthOf(r,'FECHA_BAJA')===monthIdx);
+
+  // Filtros del topbar
+  const fS = document.getElementById('fSede').value;
+  const fG = document.getElementById('fGen').value;
+  const fE = document.getElementById('fEmp').value;
+  const fN = document.getElementById('fGenero').value;
+  const fA = document.getElementById('fAntig').value;
+  const matchFilters = (r) => {
+    if (fS && rxSede(r) !== fS) return false;
+    if (fG && rxGeneracion(r) !== fG) return false;
+    if (fE && rxEmpresa(r) !== fE) return false;
+    if (fN && norm(rxGet(r, 'GENERO')) !== fN) return false;
+    if (fA && getRangoAntig(r) !== fA) return false;
+    return true;
+  };
+
+  // ALTAS del mes: combinar rawData + bajasData (dedup) — incluyen quien entró y sigue activo, y quien entró y luego salió en el año
+  const altas = [];
+  const seenAltas = new Set();
+  const considerAlta = (r, src) => {
+    if (!matchFilters(r)) return;
+    const fi = rxFechaIngreso(r);
+    if (!fi || fi.getFullYear() !== yr || fi.getMonth() !== monthIdx) return;
+    const k = String(rxId(r) || rxNombre(r));
+    if (seenAltas.has(k)) return;
+    seenAltas.add(k);
+    altas.push({ r, src });
+  };
+  rawData.forEach(r => considerAlta(r, 'activos'));
+  bajasData.forEach(r => considerAlta(r, 'bajas'));
+
+  // BAJAS del mes: solo desde bajasData
+  const bajas = [];
+  for (const r of bajasData) {
+    if (!matchFilters(r)) continue;
+    const fb = rxFechaBaja(r);
+    if (!fb || fb.getFullYear() !== yr || fb.getMonth() !== monthIdx) continue;
+    bajas.push({ r, src: 'bajas' });
+  }
+
   const renderGroup = (rows, kind) => {
     if (!rows.length) return '';
     const tag = kind === 'altas' ? 'ok' : 'off';
     const title = kind === 'altas' ? `Altas (${rows.length})` : `Bajas (${rows.length})`;
-    const items = rows.map(r => {
-      const i = rawData.indexOf(r);
-      const full = pdFullName(r);
-      const puesto = (r['PUESTO_COLABORADOR']||'').toString().trim();
-      const sede = (r['SEDE']||'').toString().trim();
-      const date = pdFmtDate(kind === 'altas' ? (r['FECHA_INGRESO']||r['Personalizado']) : r['FECHA_BAJA']) || '';
+    const items = rows.map(({ r, src }) => {
+      const arr = src === 'bajas' ? bajasData : rawData;
+      const i = arr.indexOf(r);
+      const full = rxNombre(r) || '(Sin nombre)';
+      const puesto = rxPuesto(r);
+      const sede = rxGet(r, 'SEDE') || '';
+      const date = pdFmtDate(kind === 'altas' ? rxFechaIngreso(r) : rxFechaBaja(r)) || '';
       const meta = [puesto, sede, date].filter(Boolean).join(' · ');
-      return `<div class="ab-pop-row" data-idx="${i}">
+      return `<div class="ab-pop-row" data-idx="${i}" data-src="${src}">
         <div class="ab-pop-row-name">${full.replace(/</g,'&lt;')}</div>
         <div class="ab-pop-row-meta">${meta.replace(/</g,'&lt;')}</div>
       </div>`;
@@ -2177,8 +2251,11 @@ function abShowPopover(monthIdx) {
   pop.querySelectorAll('.ab-pop-row').forEach(el => {
     el.addEventListener('click', () => {
       const idx = Number(el.getAttribute('data-idx'));
-      pdRenderProfile(rawData[idx], idx);
-      // Abrir drawer en modo perfil
+      const src = el.getAttribute('data-src');
+      const arr = src === 'bajas' ? bajasData : rawData;
+      const r = arr[idx];
+      if (!r) return;
+      pdRenderProfile(r, idx);
       document.getElementById('profileBackdrop').classList.add('open');
       const dr = document.getElementById('profileDrawer');
       dr.classList.add('open');

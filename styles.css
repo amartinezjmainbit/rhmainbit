@@ -731,3 +731,153 @@ canvas{cursor:pointer;}
 .appview-table tbody tr:last-child td{border-bottom:0;}
 .appview-table .empty-row td{text-align:center;color:var(--t3);font-style:italic;padding:18px;cursor:default;}
 .appview-table .empty-row:hover{background:transparent;}
+
+/* ════════════════════════════════════════════════════════
+   📱 MOBILE — ≤ 768px (móvil / tablet pequeña)
+   Solo KPIs + gráficas + perfil. Tablas ocultas.
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Elementos marcados explícitamente para ocultar en móvil */
+  .mobile-hide { display:none !important; }
+
+  /* ───── TOPBAR compacto (2 filas) ───── */
+  #topbar {
+    height:auto; min-height:0;
+    flex-wrap:wrap;
+    padding:8px 10px;
+    gap:6px 8px;
+    align-items:center;
+  }
+  #topbar .tlogo { height:30px; }
+  #topbar .tdiv { display:none; }
+  /* contenedor de filtros ocupa toda la fila y hace scroll horizontal */
+  #topbar > div[style*="flex:1"] {
+    flex:1 1 100% !important;
+    order:3;
+    padding:4px 0 !important;
+    gap:8px !important;
+    justify-content:flex-start !important;
+    overflow-x:auto;
+  }
+  #topbar .fg { min-width:80px; flex-shrink:0; }
+  /* contenedor de fecha+chip+botones a la derecha del logo */
+  #topbar > div[style*="flex-direction:column"] {
+    margin-left:auto;
+    gap:4px !important;
+  }
+  /* fila de botones del topbar — más chicos en móvil */
+  #topbar .tbtn { padding:5px 8px; font-size:9px; }
+  #topbar .tbtn span:not(.cf-badge):not(#cfBadge) { display:none; }
+  #topbar .tbtn svg { width:14px; height:14px; }
+  /* la fecha pequeña no se ve, la ocultamos para ganar espacio */
+  #topbar #fechaHoy { display:none; }
+
+  /* ───── BODY: stack vertical ───── */
+  #body {
+    flex-direction:column;
+    overflow-y:auto;
+    overflow-x:hidden;
+  }
+
+  /* ───── SIDEBAR: strip horizontal después de las gráficas ───── */
+  #sidebar {
+    width:100%; min-width:0;
+    flex-direction:row;
+    overflow-x:auto; overflow-y:hidden;
+    padding:8px 10px;
+    border-right:none; border-top:1px solid var(--border);
+    order:3;            /* va DESPUÉS de #main */
+    align-items:center;
+    gap:6px;
+  }
+  #sidebar .side-section-lbl { margin:0 4px 0 0; flex-shrink:0; font-size:9px; }
+  #sidebar .sdiv { width:1px; height:36px; margin:0 2px; flex-shrink:0; }
+  #sidebar .pill { width:108px; height:54px; flex-shrink:0; }
+  #sidebar .pill .pnum { font-size:18px; }
+  #sidebar .pill .plbl { font-size:9px; }
+
+  /* ───── MAIN: ancho completo, sin overflow propio ───── */
+  #main {
+    width:100%;
+    order:1;
+    overflow:visible;
+    min-height:auto;
+  }
+  #scroll {
+    overflow:visible;
+    padding:10px;
+    gap:10px;
+  }
+
+  /* ───── RIGHT PANEL: strip horizontal al final ───── */
+  #right {
+    width:100%; min-width:0;
+    flex-direction:row;
+    overflow-x:auto; overflow-y:hidden;
+    padding:8px 10px;
+    border-left:none; border-top:1px solid var(--border);
+    order:4;            /* va al final del scroll vertical */
+    gap:8px;
+  }
+  #right .pcard {
+    min-width:190px;
+    flex-shrink:0;
+    padding:10px 12px;
+  }
+
+  /* ───── KPIs en grid 2 columnas ───── */
+  #krow {
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:8px;
+  }
+  .kcard {
+    min-width:0;
+    padding:10px 12px;
+  }
+  .kval { font-size:28px !important; }
+  .klbl { font-size:10px !important; }
+
+  /* ───── CARDS y gráficas ───── */
+  .card { padding:12px 14px; }
+  .ctitle { font-size:10px; }
+  .ab-chart-wrap { height:200px; }
+  .chart-h260, .chart-h280, .chart-h300 { height:220px !important; }
+
+  /* ───── PROFILE DRAWER full screen ───── */
+  #profileDrawer {
+    width:100vw;
+    max-width:100vw;
+  }
+
+  /* ───── APP LAUNCHER ───── */
+  .applauncher-menu {
+    width:min(280px, 90vw);
+  }
+
+  /* ───── APP VIEWS (Altas / Rotación) ───── */
+  .appview { padding:10px; overflow:visible; }
+  .appview-head {
+    flex-wrap:wrap;
+    gap:8px;
+    padding:6px 0 10px;
+  }
+  .appview-title { font-size:13px; }
+  .appview-yrwrap { margin-left:auto; }
+  /* tabla del appview oculta (las cards las marcamos con mobile-hide en HTML) */
+
+  /* ───── DRAG handles innecesarios en touch ───── */
+  .drag-handle { display:none !important; }
+}
+
+/* ════════════════════════════════════════════════════════
+   📱 MOBILE pequeño — ≤ 480px (refinamientos)
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  #krow { grid-template-columns:1fr; }
+  .kval { font-size:24px !important; }
+  #topbar .tbtn.reset-btn { display:none; }  /* reiniciar también se va para ganar espacio */
+  .ab-chart-wrap { height:180px; }
+  .chart-h260, .chart-h280, .chart-h300 { height:200px !important; }
+}
