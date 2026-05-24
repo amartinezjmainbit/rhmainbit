@@ -74,12 +74,26 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);
 #app.visible{display:flex;animation:fadeUp .5s ease;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
 
-/* TOP BAR */
+/* TOP BAR — SIEMPRE oscuro en ambos modos (override de variables locales) */
 #topbar{
-  height:80px;min-height:80px;background:var(--bg2);border-bottom:1px solid var(--border);
+  height:80px;min-height:80px;
+  background:#06101E;
+  border-bottom:1px solid #1e3a5f;
   display:flex;align-items:center;padding:0 16px;gap:8px;flex-shrink:0;z-index:20;
+  /* Forzar variables oscuras dentro del topbar para que los hijos
+     (filtros, botones, labels) sigan viéndose oscuros aunque el theme sea claro */
+  --bg2:#06101E;
+  --card:rgba(22,41,77,0.96);
+  --border:#24416B;
+  --bh:#5BA3D0;
+  --t1:#F1F5F9;
+  --t2:#94A3B8;
+  --t3:#475569;
+  --accent:#5BA3D0;
+  --alight:#7FBBDC;
+  --aglow:rgba(91,163,208,0.16);
 }
-.tlogo{height:42px;object-fit:contain;flex-shrink:0;}
+.tlogo{height:36px;object-fit:contain;flex-shrink:0;}
 .tdiv{width:1px;height:22px;background:var(--border);flex-shrink:0;}
 .fg{display:flex;flex-direction:column;gap:3px;align-items:flex-start;justify-content:center;}
 .flbl{font-size:9px;font-weight:700;color:var(--t2);text-transform:uppercase;
@@ -179,6 +193,23 @@ canvas{cursor:pointer;}
 .pill-pct  .pnum{color:#38bdf8;font-size:18px;}
 .pill-pctf .pnum{color:#f472b6;font-size:18px;}
 .pill-alta .pnum{color:#10b981;font-size:18px;}
+
+/* SIDEBAR — overrides para modo CLARO (fondo claro + textos oscuros) */
+[data-theme="light"] #sidebar{
+  background:#F1F5F9;
+  border-right:1px solid #D1D5DB;
+}
+[data-theme="light"] #sidebar::-webkit-scrollbar-thumb{background:#CBD5E1;}
+[data-theme="light"] .side-section-lbl{color:#0E2447;}
+[data-theme="light"] .sdiv{background:#D1D5DB;}
+[data-theme="light"] .pill{
+  background:#FFFFFF;
+  border:1px solid #D1D5DB;
+  box-shadow:0 1px 2px rgba(14,36,71,0.04);
+}
+[data-theme="light"] .pill:hover{border-color:#5BA3D0;box-shadow:0 2px 6px rgba(91,163,208,0.18);}
+[data-theme="light"] .pill .plbl{color:#475569;}
+/* los .pnum mantienen sus colores propios (naranja, sky, pink, green) — siguen vistosos en claro */
 
 /* MAIN */
 #main{flex:1;display:flex;overflow:hidden;position:relative;}
@@ -657,6 +688,17 @@ canvas{cursor:pointer;}
 .applauncher-app:hover{border-color:var(--accent);background:var(--aglow);transform:translateY(-1px);}
 .applauncher-app.active{border-color:var(--accent);background:var(--aglow);}
 .applauncher-app.active svg{color:var(--alight);}
+/* En modo CLARO, el menú vive dentro del topbar (que tiene overrides oscuros).
+   Re-asignamos las variables al theme claro aquí para que cards + texto coincidan */
+[data-theme="light"] .applauncher-menu{
+  --bg2:#FFFFFF;
+  --bg3:#F8FAFC;
+  --border:#D1D5DB;
+  --t1:#0F172A;
+  --t2:#475569;
+  --t3:#94A3B8;
+  box-shadow:0 12px 32px rgba(14,36,71,0.18);
+}
 
 /* ══ APP VIEW (Altas / Rotación overlays) ══ */
 .appview{
