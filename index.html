@@ -66,6 +66,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
             <span>Perfil</span>
           </button>
+          <button type="button" class="applauncher-app applauncher-app-wide" data-view="resumen" onclick="switchView('resumen')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Resumen Ejecutivo</span>
+          </button>
         </div>
       </div>
     </div>
@@ -397,6 +401,137 @@
             </div>
             <div class="appview-tablewrap"><table class="appview-table" id="rotBajasTabla"></table></div>
           </div>
+        </div>
+      </div>
+
+      <!-- VISTA RESUMEN EJECUTIVO — Estilo corporativo -->
+      <div id="viewResumen" class="appview hidden">
+        <div class="appview-body resumen-body" id="resumenBody">
+
+          <!-- HEADER BANNER NAVY — mismo estilo que el Exportar PDF -->
+          <div class="rx-banner">
+            <div class="rx-banner-logo">
+              <img id="rxLogo" alt="Mainbit" src=""/>
+              <div class="rx-banner-logo-sub">Recursos Humanos · Dashboard</div>
+            </div>
+            <div class="rx-banner-center">
+              <div class="rx-banner-title">Reporte Ejecutivo de Plantilla</div>
+              <div class="rx-banner-sub" id="rxBannerSub">Año 2026</div>
+              <div class="rx-banner-date" id="rxFecha">—</div>
+            </div>
+            <div class="rx-banner-mkpis">
+              <div class="rx-mkpi rx-mkpi-violet"><div class="rx-mkpi-num" id="rxMkTotal">—</div><div class="rx-mkpi-lbl">Total</div></div>
+              <div class="rx-mkpi rx-mkpi-cyan"><div class="rx-mkpi-num" id="rxMkH">—</div><div class="rx-mkpi-lbl">Hombres</div></div>
+              <div class="rx-mkpi rx-mkpi-pink"><div class="rx-mkpi-num" id="rxMkM">—</div><div class="rx-mkpi-lbl">Mujeres</div></div>
+              <div class="rx-mkpi rx-mkpi-green"><div class="rx-mkpi-num" id="rxMkAltas">—</div><div class="rx-mkpi-lbl" id="rxMkAltasLbl">Altas 2026</div></div>
+              <div class="rx-mkpi rx-mkpi-amber"><div class="rx-mkpi-num" id="rxMkBajas">—</div><div class="rx-mkpi-lbl" id="rxMkBajasLbl">Bajas 2026</div></div>
+            </div>
+            <button type="button" class="rx-back" onclick="switchView('dashboard')" title="Volver">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              Volver
+            </button>
+            <button type="button" class="rx-pdf" onclick="exportResumenPDF()" title="Exportar a PDF">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+              PDF
+            </button>
+          </div>
+
+          <!-- 5 KPI CARDS -->
+          <div class="rx-kpis">
+            <div class="rx-kpi" data-color="violet"><div class="rx-kpi-bar"></div><div class="rx-kpi-lbl">HC Total</div><div class="rx-kpi-val" id="rxKHC">—</div></div>
+            <div class="rx-kpi" data-color="cyan"><div class="rx-kpi-bar"></div><div class="rx-kpi-lbl">Altas YTD</div><div class="rx-kpi-val" id="rxKAltas">—</div></div>
+            <div class="rx-kpi" data-color="green"><div class="rx-kpi-bar"></div><div class="rx-kpi-lbl">Retención</div><div class="rx-kpi-val" id="rxKRet">—</div></div>
+            <div class="rx-kpi" data-color="amber"><div class="rx-kpi-bar"></div><div class="rx-kpi-lbl">Bajas YTD</div><div class="rx-kpi-val" id="rxKBajas">—</div></div>
+            <div class="rx-kpi" data-color="red"><div class="rx-kpi-bar"></div><div class="rx-kpi-lbl">Rotación</div><div class="rx-kpi-val" id="rxKRot">—</div></div>
+          </div>
+
+          <!-- PANORAMA GENERAL -->
+          <div class="rx-card">
+            <div class="rx-card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Panorama general
+            </div>
+            <div class="rx-panorama">
+              <div class="rx-panorama-left">
+                <div class="rx-progress">
+                  <div class="rx-progress-lbl">Avance de retención</div>
+                  <div class="rx-progress-val" id="rxRetVal">—</div>
+                  <div class="rx-progress-bar"><div class="rx-progress-fill rx-fill-violet" id="rxRetBar" style="width:0%"></div></div>
+                  <div class="rx-progress-sub" id="rxRetSub">—</div>
+                </div>
+                <div class="rx-progress">
+                  <div class="rx-progress-lbl">Rotación anual</div>
+                  <div class="rx-progress-val" id="rxRotVal">—</div>
+                  <div class="rx-progress-bar"><div class="rx-progress-fill rx-fill-cyan" id="rxRotBar" style="width:0%"></div></div>
+                  <div class="rx-progress-sub" id="rxRotSub">—</div>
+                </div>
+              </div>
+              <div class="rx-panorama-right">
+                <div class="rx-state-lbl">Estado del personal</div>
+                <div class="rx-state-grid">
+                  <div class="rx-state-cell"><span class="rx-dot rx-dot-green"></span><div class="rx-state-lbl2">Activos</div><div class="rx-state-num" id="rxStActivos">—</div></div>
+                  <div class="rx-state-cell"><span class="rx-dot rx-dot-cyan"></span><div class="rx-state-lbl2">Altas YTD</div><div class="rx-state-num" id="rxStAltas">—</div></div>
+                  <div class="rx-state-cell"><span class="rx-dot rx-dot-amber"></span><div class="rx-state-lbl2">Bajas YTD</div><div class="rx-state-num" id="rxStBajas">—</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ALERTAS Y OBSERVACIONES -->
+          <div class="rx-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alertas detectadas <span id="rxAlertsCount2" class="rx-section-count">(0)</span>
+          </div>
+
+          <div id="rxAlerts"></div>
+
+          <!-- ANÁLISIS DE LIDERAZGO -->
+          <div class="rx-section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/><circle cx="12" cy="7" r="4"/></svg>
+            Análisis de liderazgo
+          </div>
+
+          <div class="rx-grid-2">
+            <div class="rx-card">
+              <div class="rx-card-title"><span class="rx-trophy">🏆</span> Top 5 líderes con mejor retención</div>
+              <div id="rxTopRetencion" class="rx-ranking"></div>
+            </div>
+            <div class="rx-card">
+              <div class="rx-card-title"><span class="rx-warn">⚠️</span> Líderes con mayor rotación</div>
+              <div id="rxBotRetencion" class="rx-ranking"></div>
+            </div>
+          </div>
+
+          <div class="rx-grid-2">
+            <div class="rx-spotlight rx-spotlight-good">
+              <div class="rx-spotlight-lbl">PM CON MEJOR RETENCIÓN</div>
+              <div class="rx-spotlight-name" id="rxBestPM">—</div>
+              <div class="rx-spotlight-stat" id="rxBestPMStat">—</div>
+            </div>
+            <div class="rx-spotlight rx-spotlight-bad">
+              <div class="rx-spotlight-lbl">PM CON MAYOR ROTACIÓN</div>
+              <div class="rx-spotlight-name" id="rxWorstPM">—</div>
+              <div class="rx-spotlight-stat" id="rxWorstPMStat">—</div>
+            </div>
+          </div>
+
+          <!-- TABLA POR PM -->
+          <div class="rx-card">
+            <div class="rx-card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Detalle por líder</div>
+            <div class="rx-table-wrap">
+              <table class="rx-table" id="rxLiderTable"></table>
+            </div>
+          </div>
+
+          <!-- FOOTER -->
+          <div class="rx-footer">
+            <span>Generado el <b id="rxFooterFecha">—</b></span>
+            <span class="rx-footer-sep">·</span>
+            <span>Mainbit Recursos Humanos</span>
+            <span class="rx-footer-sep">·</span>
+            <span class="rx-conf">CONFIDENCIAL</span>
+          </div>
+
         </div>
       </div>
 

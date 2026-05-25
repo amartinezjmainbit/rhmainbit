@@ -897,7 +897,7 @@ function renderKPIs(data) {
   }
   setText('kBajas', kB);
 
-  // Altas del año: combinar ambos archivos por ID_C
+  // Altas del año: SOLO desde rawData (activos). Si está en bajasData, ya no es alta.
   const seen = new Set();
   let kA = 0;
   const consider = (r) => {
@@ -910,7 +910,6 @@ function renderKPIs(data) {
     kA++;
   };
   rawData.forEach(consider);
-  bajasData.forEach(consider);
   setText('kAltas', kA);
 }
 function abGetFiltered() {
@@ -2090,7 +2089,7 @@ function renderAltasBajas() {
     return true;
   };
 
-  // ALTAS: combinar rawData + bajasData (dedup por ID_C) por FECHA_INGRESO del año
+  // ALTAS: SOLO desde rawData. Si está en bajasData, no se cuenta como alta.
   const altas = new Array(12).fill(0);
   const seenAltas = new Set();
   const considerAlta = (r) => {
@@ -2103,7 +2102,6 @@ function renderAltasBajas() {
     altas[fi.getMonth()]++;
   };
   rawData.forEach(considerAlta);
-  bajasData.forEach(considerAlta);
 
   // BAJAS: solo desde el archivo de bajasData (rawData ya no contiene bajas)
   const bajas = new Array(12).fill(0);
@@ -2188,7 +2186,7 @@ function abShowPopover(monthIdx) {
     return true;
   };
 
-  // ALTAS del mes: combinar rawData + bajasData (dedup) — incluyen quien entró y sigue activo, y quien entró y luego salió en el año
+  // ALTAS del mes: SOLO desde rawData (activos). Quien está en bajasData no es alta.
   const altas = [];
   const seenAltas = new Set();
   const considerAlta = (r, src) => {
@@ -2201,7 +2199,6 @@ function abShowPopover(monthIdx) {
     altas.push({ r, src });
   };
   rawData.forEach(r => considerAlta(r, 'activos'));
-  bajasData.forEach(r => considerAlta(r, 'bajas'));
 
   // BAJAS del mes: solo desde bajasData
   const bajas = [];
@@ -2452,7 +2449,7 @@ function openListMode(kind, opts) {
   const yr = opts.year != null ? opts.year : new Date().getFullYear();
   const isAltas = kind === 'altas';
 
-  // Fuente: prioriza bajasData para bajas; para altas combina ambos archivos
+  // Fuente: prioriza bajasData para bajas; para altas SOLO rawData (los que están en bajasData ya no son altas)
   let rows;
   if (isAltas) {
     const seen = new Set();
@@ -2467,7 +2464,6 @@ function openListMode(kind, opts) {
       rows.push(r);
     };
     rawData.forEach(consider);
-    bajasData.forEach(consider);
   } else {
     if (!bajasData.length) {
       showToast('<b>No hay archivo de bajas cargado</b><br/><small>Carga el Excel de bajas para ver el listado</small>', 'warn');
@@ -2767,16 +2763,22 @@ function switchView(view) {
   const scroll = document.getElementById('scroll');
   const va = document.getElementById('viewAltas');
   const vr = document.getElementById('viewRotacion');
+  const vres = document.getElementById('viewResumen');
   scroll.classList.add('hidden');
   va.classList.add('hidden');
   vr.classList.add('hidden');
+  if (vres) vres.classList.add('hidden');
   closeAppLauncher();
-  const label = view === 'rotacion' ? 'Cargando rotación…' : view === 'altas' ? 'Cargando altas…' : 'Cargando…';
+  const label = view === 'rotacion' ? 'Cargando rotación…'
+              : view === 'altas' ? 'Cargando altas…'
+              : view === 'resumen' ? 'Generando resumen ejecutivo…'
+              : 'Cargando…';
   runWithLoading(label, () => {
     try {
       if (view === 'dashboard') scroll.classList.remove('hidden');
       else if (view === 'altas') { va.classList.remove('hidden'); renderAltasView(); }
       else if (view === 'rotacion') { vr.classList.remove('hidden'); renderRotacionView(); }
+      else if (view === 'resumen') { vres.classList.remove('hidden'); renderResumenEjecutivo(); }
     } catch (err) {
       console.error('Error en switchView('+view+'):', err);
       showToast(`<b>❌ Error al abrir ${view}</b><br/><small>${(err && err.message) || err}</small>`, 'error');
@@ -2896,7 +2898,7 @@ function yearsConBajas() {
   return [...years].sort((a,b) => a - b);
 }
 
-// Universo unificado de altas (combina ambos archivos, deduplica por ID_C)
+// Universo de altas del año: SOLO desde rawData. Los que están en bajasData ya no son altas.
 function allAltasYear(year) {
   const seen = new Set();
   const out = [];
@@ -2909,7 +2911,6 @@ function allAltasYear(year) {
     out.push(r);
   };
   rawData.forEach(consider);
-  bajasData.forEach(consider);
   return out;
 }
 
@@ -3551,5 +3552,313 @@ function renderRotacionLider() {
     return `<tr><td>${lider}</td>${sedeCell}${volInvCells}<td class="num">${g.total}</td><td class="num">${g.hcProm.toFixed(1)}</td><td class="num pct">${g.rot.toFixed(0)}%</td></tr>`;
   }).join('');
   t.innerHTML = head + `<tbody>${body}</tbody>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// 📋 RESUMEN EJECUTIVO — Estilo corporativo
+// ══════════════════════════════════════════════════════════
+function renderResumenEjecutivo() {
+  const yr = new Date().getFullYear();
+  const today = new Date();
+  const fechaCorta = today.toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  setText('rxFecha', fechaCorta.charAt(0).toUpperCase() + fechaCorta.slice(1));
+  setText('rxFooterFecha', today.toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' }));
+  setText('rxBannerSub', `Año ${yr}`);
+  setText('rxMkAltasLbl', `Altas ${yr}`);
+  setText('rxMkBajasLbl', `Bajas ${yr}`);
+
+  // Logo del banner — usa el logo blanco del PDF (LOGO_W) que ya existe
+  const logoEl = document.getElementById('rxLogo');
+  if (logoEl && typeof LOGO_W !== 'undefined') logoEl.src = LOGO_W;
+
+  // ════ KPIs PRINCIPALES ════
+  const hcTotal = rawData.length;
+  let altasYTD = 0, bajasYTD = 0;
+  const seenAlt = new Set();
+  const altasYrRows = [];
+  for (const r of rawData) {
+    const fi = rxFechaIngreso(r);
+    if (!fi || fi.getFullYear() !== yr) continue;
+    const k = String(rxId(r) || rxNombre(r));
+    if (seenAlt.has(k)) continue;
+    seenAlt.add(k);
+    altasYTD++; altasYrRows.push(r);
+  }
+  const bajasYrRows = [];
+  for (const r of bajasData) {
+    const fb = rxFechaBaja(r);
+    if (!fb || fb.getFullYear() !== yr) continue;
+    bajasYTD++; bajasYrRows.push(r);
+  }
+  const hcProm = hcPromMensual(rawData, yr);
+  const rotPct = hcProm > 0 ? (bajasYTD / hcProm * 100) : 0;
+  const retPct = Math.max(0, Math.min(100, 100 - rotPct));
+  const fmt = (n) => n.toLocaleString('es-MX');
+  setText('rxKHC', fmt(hcTotal));
+  setText('rxKAltas', fmt(altasYTD));
+  setText('rxKBajas', fmt(bajasYTD));
+  setText('rxKRet', `${retPct.toFixed(1)}%`);
+  setText('rxKRot', `${rotPct.toFixed(1)}%`);
+
+  // ════ MINI-KPIs DEL BANNER (estilo PDF: Total/H/M/Altas/Bajas) ════
+  const hombres = rawData.filter(r => norm(rxGet(r, 'GENERO')) === 'H').length;
+  const mujeres = rawData.filter(r => norm(rxGet(r, 'GENERO')) === 'M').length;
+  setText('rxMkTotal', fmt(hcTotal));
+  setText('rxMkH', fmt(hombres));
+  setText('rxMkM', fmt(mujeres));
+  setText('rxMkAltas', fmt(altasYTD));
+  setText('rxMkBajas', fmt(bajasYTD));
+
+  // ════ PANORAMA — progress bars + estado ════
+  setText('rxRetVal', `${retPct.toFixed(1)}%`);
+  const retBar = document.getElementById('rxRetBar');
+  if (retBar) retBar.style.width = `${retPct.toFixed(1)}%`;
+  setText('rxRetSub', retPct >= 90 ? 'Retención excelente · objetivo cumplido'
+                    : retPct >= 80 ? 'Retención saludable'
+                    : retPct >= 70 ? 'A monitorear — revisar causas'
+                    : 'Retención crítica — atención requerida');
+
+  setText('rxRotVal', `${rotPct.toFixed(1)}%`);
+  const rotBar = document.getElementById('rxRotBar');
+  if (rotBar) {
+    rotBar.style.width = `${Math.min(rotPct,100).toFixed(1)}%`;
+    rotBar.classList.remove('rx-fill-cyan','rx-fill-amber','rx-fill-red');
+    rotBar.classList.add(rotPct < 10 ? 'rx-fill-cyan' : rotPct < 20 ? 'rx-fill-amber' : 'rx-fill-red');
+  }
+  setText('rxRotSub', `${bajasYTD} bajas sobre HC prom ${hcProm.toFixed(0)}`);
+
+  setText('rxStActivos', fmt(hcTotal));
+  setText('rxStAltas', fmt(altasYTD));
+  setText('rxStBajas', fmt(bajasYTD));
+
+  // ════ DETECCIÓN DE ALERTAS ════
+  // Agrupar bajas por líder
+  const liderBajas = {};
+  for (const r of bajasYrRows) {
+    const j = rxJefe(r); if (!j) continue;
+    if (!liderBajas[j]) liderBajas[j] = [];
+    liderBajas[j].push(r);
+  }
+  // Activos por líder (para calcular rotación)
+  const liderActivos = {};
+  for (const r of rawData) {
+    const j = rxJefe(r); if (!j) continue;
+    if (!liderActivos[j]) liderActivos[j] = [];
+    liderActivos[j].push(r);
+  }
+
+  const alerts = [];
+
+  // 1) ADVERTENCIA: Líderes con rotación > 20%
+  const liderRotacion = [];
+  const allLideres = new Set([...Object.keys(liderBajas), ...Object.keys(liderActivos)]);
+  for (const j of allLideres) {
+    const team = liderActivos[j] || [];
+    const teamSize = team.length;
+    const bajas = (liderBajas[j] || []).length;
+    const baseEquipo = teamSize + bajas;
+    if (baseEquipo === 0) continue;
+    const pct = baseEquipo > 0 ? (bajas / baseEquipo * 100) : 0;
+    liderRotacion.push({ jefe: j, team: teamSize, baseEquipo, bajas, pct });
+  }
+  const highRot = liderRotacion.filter(l => l.pct > 20 && l.bajas >= 2).sort((a,b) => b.pct - a.pct);
+  if (highRot.length > 0) {
+    const rows = highRot.slice(0, 8).map(l =>
+      `<tr><td>${escapeHTML(l.jefe)}</td><td class="num">${l.baseEquipo}</td><td class="num">${l.bajas}</td><td class="num rx-warn-cell">${l.pct.toFixed(0)}%</td></tr>`
+    ).join('');
+    alerts.push({
+      level: 'warn',
+      icon: '⚠️',
+      title: `${highRot.length} líder${highRot.length>1?'es':''} con rotación elevada (&gt;20%)`,
+      head: '<tr><th>Líder</th><th class="num">Equipo</th><th class="num">Bajas</th><th class="num">% Rotación</th></tr>',
+      body: rows
+    });
+  }
+
+  // 2) ATENCIÓN: Bajas del último mes
+  const lastMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const recentBajas = bajasYrRows.filter(r => {
+    const fb = rxFechaBaja(r); return fb && fb >= lastMonthStart;
+  }).sort((a,b) => rxFechaBaja(b) - rxFechaBaja(a));
+  if (recentBajas.length > 0) {
+    const rows = recentBajas.slice(0, 8).map(r => {
+      const nombre = rxNombre(r) || '(sin nombre)';
+      const sede = rxSede(r) || '—';
+      const fb = rxFechaBaja(r);
+      const fecha = fb ? fb.toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) : '—';
+      const motivo = rxMotivoBaja(r) || '—';
+      return `<tr><td>${escapeHTML(nombre)}</td><td>${escapeHTML(sede)}</td><td>${fecha}</td><td>${escapeHTML(motivo)}</td></tr>`;
+    }).join('');
+    alerts.push({
+      level: 'info',
+      icon: 'ℹ️',
+      title: `${recentBajas.length} baja${recentBajas.length>1?'s':''} en el último mes`,
+      head: '<tr><th>Colaborador</th><th>Sede</th><th>Fecha</th><th>Motivo</th></tr>',
+      body: rows
+    });
+  }
+
+  // 3) CRÍTICO: Bajas con menos de 30 días de antigüedad (early churn)
+  const earlyChurn = bajasYrRows.filter(r => {
+    const fi = rxFechaIngreso(r), fb = rxFechaBaja(r);
+    if (!fi || !fb) return false;
+    const days = (fb - fi) / (1000*60*60*24);
+    return days >= 0 && days < 30;
+  }).sort((a,b) => rxFechaBaja(b) - rxFechaBaja(a));
+  if (earlyChurn.length > 0) {
+    const rows = earlyChurn.slice(0, 8).map(r => {
+      const nombre = rxNombre(r) || '(sin nombre)';
+      const sede = rxSede(r) || '—';
+      const fi = rxFechaIngreso(r), fb = rxFechaBaja(r);
+      const days = Math.round((fb - fi) / (1000*60*60*24));
+      const fechaI = fi ? fi.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'2-digit' }) : '—';
+      const fechaB = fb ? fb.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'2-digit' }) : '—';
+      return `<tr><td>${escapeHTML(nombre)}</td><td>${fechaI}</td><td>${fechaB}</td><td class="num rx-warn-cell">${days} d</td></tr>`;
+    }).join('');
+    alerts.push({
+      level: 'danger',
+      icon: '🔴',
+      title: `${earlyChurn.length} colaborador${earlyChurn.length>1?'es':''} con menos de 30 días antes de baja`,
+      head: '<tr><th>Colaborador</th><th>Ingreso</th><th>Baja</th><th class="num">Días</th></tr>',
+      body: rows
+    });
+  }
+
+  // Pintar alertas
+  setText('rxAlertsCount2', `(${alerts.length})`);
+  const alertsEl = document.getElementById('rxAlerts');
+  if (alertsEl) {
+    if (alerts.length === 0) {
+      alertsEl.innerHTML = `<div class="rx-card" style="text-align:center;color:#94A3B8;padding:24px;">
+        ✅ Sin alertas en este periodo — todo dentro de parámetros normales.
+      </div>`;
+    } else {
+      alertsEl.innerHTML = alerts.map(a => `
+        <div class="rx-alert rx-alert-${a.level}">
+          <div class="rx-alert-head">
+            <span class="rx-badge rx-badge-${a.level === 'warn' ? 'warn' : a.level === 'info' ? 'info' : 'danger'}">${a.level === 'warn' ? 'Advertencia' : a.level === 'info' ? 'Atención' : 'Crítico'}</span>
+            <div class="rx-alert-title">${a.title}</div>
+          </div>
+          <table class="rx-mini-table">
+            <thead>${a.head}</thead>
+            <tbody>${a.body}</tbody>
+          </table>
+        </div>
+      `).join('');
+    }
+  }
+
+  // ════ ANÁLISIS DE LIDERAZGO ════
+  // Solo líderes con equipo real (>= 3 activos) para que el ranking sea significativo
+  const liderRanking = liderRotacion.filter(l => l.baseEquipo >= 3);
+  const bestRet = [...liderRanking].sort((a,b) => a.pct - b.pct).slice(0, 5);
+  const worstRet = [...liderRanking].filter(l => l.bajas > 0).sort((a,b) => b.pct - a.pct).slice(0, 5);
+
+  const renderRanking = (arr, kind) => {
+    if (!arr.length) return '<div class="rx-rank-empty">Sin datos disponibles</div>';
+    return arr.map((l, i) => {
+      const retP = (100 - l.pct).toFixed(0);
+      const cls = kind === 'best' ? '' : (l.pct > 25 ? 'bad' : l.pct > 15 ? 'warn' : '');
+      const widthPct = kind === 'best' ? retP : Math.min(l.pct, 100);
+      const valShown = kind === 'best' ? `${retP}%` : `${l.pct.toFixed(0)}%`;
+      return `<div class="rx-rank-row">
+        <span class="rx-rank-num">${i+1}</span>
+        <span class="rx-rank-name" title="${escapeHTML(l.jefe)}">${escapeHTML(l.jefe)}</span>
+        <span class="rx-rank-bar"><span class="rx-rank-bar-fill ${cls}" style="width:${widthPct}%"></span></span>
+        <span class="rx-rank-pct ${cls}">${valShown}</span>
+      </div>`;
+    }).join('');
+  };
+  document.getElementById('rxTopRetencion').innerHTML = renderRanking(bestRet, 'best');
+  document.getElementById('rxBotRetencion').innerHTML = renderRanking(worstRet, 'worst');
+
+  // Spotlights
+  if (bestRet[0]) {
+    const b = bestRet[0];
+    setText('rxBestPM', b.jefe);
+    setText('rxBestPMStat', `${b.team} activos · ${b.bajas} bajas · ${(100-b.pct).toFixed(0)}% retención`);
+  } else { setText('rxBestPM', '—'); setText('rxBestPMStat', 'Sin datos suficientes'); }
+  if (worstRet[0]) {
+    const w = worstRet[0];
+    setText('rxWorstPM', w.jefe);
+    setText('rxWorstPMStat', `${w.team} activos · ${w.bajas} bajas · ${w.pct.toFixed(0)}% rotación`);
+  } else { setText('rxWorstPM', '—'); setText('rxWorstPMStat', 'Sin datos suficientes'); }
+
+  // ════ TABLA DETALLE POR LÍDER ════
+  const allLiderArr = liderRotacion.filter(l => l.baseEquipo >= 1).sort((a,b) => b.pct - a.pct);
+  const tEl = document.getElementById('rxLiderTable');
+  if (tEl) {
+    const head = '<thead><tr><th>Líder</th><th class="num">Equipo</th><th class="num">Bajas</th><th>Avance retención</th><th class="num">%</th></tr></thead>';
+    const body = allLiderArr.slice(0, 50).map(l => {
+      const retP = Math.max(0, 100 - l.pct);
+      const cls = l.pct < 10 ? '' : l.pct < 20 ? 'warn' : 'bad';
+      return `<tr>
+        <td>${escapeHTML(l.jefe)}</td>
+        <td class="num">${l.baseEquipo}</td>
+        <td class="num">${l.bajas}</td>
+        <td><span class="rx-mini-bar"><div class="${cls}" style="width:${retP.toFixed(0)}%"></div></span></td>
+        <td class="num ${l.pct > 20 ? 'rx-warn-cell' : ''}">${l.pct.toFixed(0)}% rot</td>
+      </tr>`;
+    }).join('');
+    tEl.innerHTML = head + `<tbody>${body || '<tr><td colspan="5" class="rx-empty">Sin datos disponibles</td></tr>'}</tbody>`;
+  }
+}
+
+// Pequeño helper para escapar HTML en valores dinámicos
+function escapeHTML(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Exportar Resumen Ejecutivo a PDF
+async function exportResumenPDF() {
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+    showToast('<b>Librerías PDF no cargadas</b><br/><small>Verifica conexión y recarga</small>', 'error');
+    return;
+  }
+  const body = document.getElementById('resumenBody');
+  if (!body) return;
+  showLoading('Generando PDF…');
+  try {
+    // El reporte ejecutivo usa fondo light por diseño (look corporativo) — siempre blanco
+    const canvas = await html2canvas(body, {
+      backgroundColor: '#F1F5F9',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    // A4 portrait: 210 × 297 mm
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW - 16;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    let y = 8;
+    if (imgH < pageH - 16) {
+      pdf.addImage(imgData, 'PNG', 8, y, imgW, imgH);
+    } else {
+      // Si excede una página, lo paginamos
+      let remaining = imgH;
+      let offset = 0;
+      while (remaining > 0) {
+        pdf.addImage(imgData, 'PNG', 8, y - offset, imgW, imgH);
+        remaining -= (pageH - 16);
+        offset += (pageH - 16);
+        if (remaining > 0) { pdf.addPage(); y = 8; }
+      }
+    }
+    const yr = new Date().getFullYear();
+    const fechaStr = new Date().toISOString().slice(0,10);
+    pdf.save(`Resumen_Ejecutivo_RH_${yr}_${fechaStr}.pdf`);
+    showToast('<b>✓ PDF generado</b>', 'success');
+  } catch (err) {
+    console.error('Error generando PDF:', err);
+    showToast(`<b>Error al generar PDF</b><br/><small>${err.message || err}</small>`, 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
