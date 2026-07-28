@@ -35,6 +35,22 @@
   --accent:#0E2447; --alight:#5BA3D0; --aglow: rgba(91,163,208,0.12);
   --shadow:0 2px 12px rgba(0,0,0,0.08); --shadowh:0 6px 24px rgba(14,36,71,0.12);
 }
+/* Azul oscuro — variante más profunda del tema oscuro, mismo acento sky Mainbit */
+[data-theme="blue-dark"] {
+  --bg:    #040C18; --bg2:   #050F1F; --bg3:   #0A1930;
+  --card:  rgba(10,25,48,0.96); --border:#12315C; --bh: #5BA3D0;
+  --t1:    #E8F1FA; --t2:    #9FC3E0; --t3:    #6690B0;
+  --accent:#2E7BC4; --alight:#5BA3D0; --aglow: rgba(46,123,196,0.18);
+  --shadow:0 4px 24px rgba(0,0,0,0.4); --shadowh:0 8px 40px rgba(46,123,196,0.2);
+}
+/* Gris — grises puros sin tinte azul, mismo acento sky Mainbit para no perder identidad */
+[data-theme="gray"] {
+  --bg:    #161616; --bg2:   #1C1C1C; --bg3:   #222222;
+  --card:  rgba(37,37,37,0.96); --border:#383838; --bh: #5BA3D0;
+  --t1:    #E8E8E8; --t2:    #A8A8A8; --t3:    #707070;
+  --accent:#5BA3D0; --alight:#7FBBDC; --aglow: rgba(91,163,208,0.16);
+  --shadow:0 4px 24px rgba(0,0,0,0.4); --shadowh:0 8px 40px rgba(91,163,208,0.18);
+}
 *{margin:0;padding:0;box-sizing:border-box;}
 html{scroll-behavior:smooth;}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);
@@ -210,6 +226,24 @@ canvas{cursor:pointer;}
 [data-theme="light"] .pill:hover{border-color:#5BA3D0;box-shadow:0 2px 6px rgba(91,163,208,0.18);}
 [data-theme="light"] .pill .plbl{color:#475569;}
 /* los .pnum mantienen sus colores propios (naranja, sky, pink, green) — siguen vistosos en claro */
+
+/* SIDEBAR — overrides para AZUL OSCURO (mismo patrón que light, con paleta propia) */
+[data-theme="blue-dark"] #sidebar{background:#050F1F;border-right:1px solid #12315C;}
+[data-theme="blue-dark"] #sidebar::-webkit-scrollbar-thumb{background:#1E4A7A;}
+[data-theme="blue-dark"] .side-section-lbl{color:#5B8CB8;}
+[data-theme="blue-dark"] .sdiv{background:#12315C;}
+[data-theme="blue-dark"] .pill{background:#050F1F;border:1px solid #12315C;}
+[data-theme="blue-dark"] .pill:hover{border-color:#2E7BC4;}
+[data-theme="blue-dark"] .pill .plbl{color:#9FC3E0;}
+
+/* SIDEBAR — overrides para GRIS (mismo patrón que light, con paleta propia) */
+[data-theme="gray"] #sidebar{background:#1C1C1C;border-right:1px solid #383838;}
+[data-theme="gray"] #sidebar::-webkit-scrollbar-thumb{background:#484848;}
+[data-theme="gray"] .side-section-lbl{color:#8A8A8A;}
+[data-theme="gray"] .sdiv{background:#383838;}
+[data-theme="gray"] .pill{background:#1C1C1C;border:1px solid #383838;}
+[data-theme="gray"] .pill:hover{border-color:#5BA3D0;}
+[data-theme="gray"] .pill .plbl{color:#A8A8A8;}
 
 /* MAIN */
 #main{flex:1;display:flex;overflow:hidden;position:relative;}
@@ -779,6 +813,19 @@ canvas{cursor:pointer;}
    ══════════════════════════════════════════════════════════ */
 .applauncher-app-wide{grid-column:1 / -1;flex-direction:row !important;justify-content:flex-start !important;padding:11px 14px !important;gap:10px !important;}
 .applauncher-app-wide svg{width:20px !important;height:20px !important;}
+.applauncher-divider{height:1px;background:var(--border);margin:12px 0 10px;}
+.theme-opt-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+.theme-opt{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;
+  color:var(--t1);font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;
+  transition:var(--trans);
+}
+.theme-opt:hover{border-color:var(--accent);background:var(--aglow);}
+.theme-opt.active{border-color:var(--accent);background:var(--aglow);}
+.theme-swatch{width:18px;height:18px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,0.15);}
+.theme-opt.active .theme-swatch{box-shadow:0 0 0 2px var(--accent);}
+.theme-opt-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 /* Body del resumen — SIEMPRE light (replica el look del PDF) */
 .resumen-body{
@@ -958,6 +1005,7 @@ canvas{cursor:pointer;}
 .rx-rank-pct{font-size:12px;font-weight:700;color:#10B981;font-family:'JetBrains Mono',monospace;min-width:40px;text-align:right;}
 .rx-rank-pct.warn{color:#F59E0B;}
 .rx-rank-pct.bad{color:#EF4444;}
+.rx-rank-n{display:block;font-size:9px;font-weight:600;color:var(--t3);font-family:'JetBrains Mono',monospace;text-align:right;}
 .rx-rank-empty{font-size:12px;color:var(--t3);font-style:italic;text-align:center;padding:14px;}
 
 /* SPOTLIGHT — cards destacadas */
