@@ -2633,6 +2633,60 @@ function openListMode(kind, opts) {
   });
 }
 
+// Abre el drawer en modo lista para cualquier grupo de colaboradores (p.ej. por nivel jerárquico)
+function openListModeGroup(rows, title) {
+  if (!rawData.length) { alert('Carga primero un archivo Excel.'); return; }
+  document.getElementById('profileBackdrop').classList.add('open');
+  const dr = document.getElementById('profileDrawer');
+  dr.classList.add('open');
+  dr.setAttribute('aria-hidden','false');
+
+  const body = document.getElementById('pdBody');
+  const items = rows.map(r => {
+    const i = rawData.indexOf(r);
+    const full = pdFullName(r);
+    const puesto = rxPuesto(r);
+    const sede = rxSede(r);
+    const meta = [puesto, sede].filter(Boolean).join(' · ') || '—';
+    return `<div class="pd-list-item" data-idx="${i}">
+      <div class="pd-res-avatar">${pdPhotoHTML(r, false)}</div>
+      <div class="pd-res-info">
+        <div class="pd-res-name">${full.replace(/</g,'&lt;')}</div>
+        <div class="pd-res-meta">${meta.replace(/</g,'&lt;')}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="pd-list-head">
+      <div class="pd-list-title">
+        <span class="pd-list-chip ok">${rows.length}</span>
+        ${title}
+      </div>
+      <div class="pd-list-sub">${rows.length === 1 ? '1 colaborador' : rows.length + ' colaboradores'}</div>
+    </div>
+    ${rows.length ? `<div class="pd-list">${items}</div>` : '<div class="pd-res-empty">Sin colaboradores en este grupo.</div>'}
+  `;
+
+  body.querySelectorAll('.pd-list-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = Number(el.getAttribute('data-idx'));
+      pdRenderProfile(rawData[idx], idx);
+    });
+  });
+}
+
+// Pills de JERARQUÍA (sidebar): cross-filtran el dashboard (como las barras de "HC por Jerarquía")
+// y abren el listado de colaboradores de ese nivel. "Supervisión/Líder" agrupa 2 valores crudos,
+// así que no se puede cross-filtrar con un único valor — solo abre la lista.
+function openJerarquiaList(niveles, label) {
+  const arr = Array.isArray(niveles) ? niveles : [niveles];
+  const arrNorm = arr.map(norm);
+  if (arr.length === 1) setCF('NIVEL_JERARQUIA', arr[0]);
+  const rows = getFiltered().filter(r => arrNorm.includes(rxNivelJer(r)));
+  openListModeGroup(rows, label);
+}
+
 function pdRenderProfile(r, idx) {
   if (!r) return;
   pdSelectedId = pdEmployeeId(r, idx);
