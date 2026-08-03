@@ -9,7 +9,7 @@ const LOGO_C = 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0
 // Paletas de colores
 const C_SEDE = {MANCERA:'#818cf8',INTERLOMAS:'#c084fc',ROM:'#f87171',ROMERO:'#64748b',CEDIS:'#38bdf8'};
 const C_GEN  = {'GENERACION "X"':'#7c3aed','GENERACION "Y"':'#0891b2','GENERACION "Z"':'#10b981','BABY BOOMER':'#f59e0b'};
-const C_JER  = {COORDINACION:'#06b6d4',DIRECCION:'#f97316',GERENCIA:'#10b981',LIDER:'#7c3aed',OPERACION:'#f59e0b',OPERATIVO:'#f59e0b',SUPERVISION:'#ef4444'};
+const C_JER  = {COORDINACION:'#06b6d4',DIRECCION:'#f97316',SUBDIRECCION:'#ec4899',GERENCIA:'#10b981',LIDER:'#7c3aed',OPERACION:'#f59e0b',OPERATIVO:'#f59e0b',SUPERVISION:'#ef4444'};
 const C_EMP  = {MAINBIT:'#7c3aed',ROM:'#06b6d4','SECURITY ONE':'#1d4ed8',INNBIT:'#f97316',CLOUD:'#10b981',EXTERNO:'#64748b',DEFAULT:'#94a3b8'};
 const C_NOM  = {'S&S':'#ec4899',MAINBIT:'#7c3aed',HUBLEX:'#f59e0b','CANON-GY':'#06b6d4',EXTERNO:'#10b981',ADTECH:'#1d4ed8',VASCAR:'#64748b',DEFAULT:'#94a3b8'};
 
@@ -177,6 +177,8 @@ function precomputeDates(rows) {
     r['ESTATUS_COLABORADOR']      = rxGet(r, 'ESTATUS_COLABORADOR', 'ESTATUS COLABORADOR', 'ESTATUS');
     r['NIVEL_JERARQUIA']          = rxGet(r, 'NIVEL_JERARQUIA', 'NIVEL JERARQUICO', 'NIVEL JERARQUIA', 'NIVEL_JERARQUICO');
     r['ADMINISTRADORA DE NOMINA'] = rxGet(r, 'ADMINISTRADORA DE NOMINA', 'ADMINISTRADORA DE NÓMINA', 'ADMINSTRADORA DE NOMINA', 'ADMINSTRADORA DE NÓMINA');
+    // HRBP reemplazó a LOCAL/FORANEO en el Excel — mismo campo, nombre y contenido nuevos.
+    r['HRBP'] = rxGet(r, 'HRBP', 'LOCAL/FORANEO', 'LOCAL/FORÁNEO', 'LOCAL FORANEO');
     // Cache del nombre completo + versión normalizada para búsqueda (pdSearch usa esto en cada keystroke)
     const fullN = (rxGet(r, 'NOMBRE_COMPLETO_COLABORADOR', 'COLABORADOR2', 'COLABORADOR', 'NOMBRE COMPLETO') || '').toString().trim();
     if (fullN) {
@@ -193,6 +195,7 @@ function precomputeDates(rows) {
 }
 function rxJefe(r) { return ((rxGet(r, 'JEFE_DIRECTO', 'LIDER', 'LIDER DIRECTO', 'JEFE') || '')+'').trim(); }
 function rxArea(r) { return norm(rxGet(r, 'AREA', 'ÁREA')); }
+function rxHRBP(r) { return norm(rxGet(r, 'HRBP', 'LOCAL/FORANEO', 'LOCAL/FORÁNEO', 'LOCAL FORANEO')); }
 function rxNivelJer(r) { return norm(rxGet(r, 'NIVEL_JERARQUIA', 'NIVEL JERARQUICO', 'NIVEL JERARQUIA', 'NIVEL_JERARQUICO')); }
 function rxSede(r) { if (r && r._sede !== undefined) return r._sede; return norm(rxGet(r, 'SEDE')); }
 function rxEmpresa(r) { if (r && r._empresa !== undefined) return r._empresa; return norm(rxGet(r, 'EMPRESA')); }
@@ -542,7 +545,7 @@ function gd() {
 
 // ══ REINICIAR FILTROS ══
 function resetFiltros() {
-  ['fSede','fGen','fEmp','fGenero','fAntig','fArea'].forEach(id => {
+  ['fSede','fGen','fEmp','fGenero','fHRBP','fArea'].forEach(id => {
     document.getElementById(id).value = '';
   });
   if (rawData.length) rebuildAllDeferred('Reiniciando filtros…');
@@ -639,15 +642,9 @@ function fillFilters() {
     sel.innerHTML = '<option value="">Todas</option>' + vals.map(v => `<option>${v}</option>`).join('');
     if (vals.includes(prev)) sel.value = prev;
   };
-  fill('fSede','SEDE'); fill('fGen','GENERACION'); fill('fEmp','EMPRESA'); fill('fArea','AREA');
-  // Fill fAntig with computed rango
-  const selA = document.getElementById('fAntig');
-  const prevA = selA.value;
-  const rangos = [...new Set(act.map(r=>getRangoAntig(r)).filter(Boolean))].sort();
-  selA.innerHTML = '<option value="">Todas</option>' + rangos.map(v=>`<option>${v}</option>`).join('');
-  if (rangos.includes(prevA)) selA.value = prevA;
+  fill('fSede','SEDE'); fill('fGen','GENERACION'); fill('fEmp','EMPRESA'); fill('fArea','AREA'); fill('fHRBP','HRBP');
 }
-['fSede','fGen','fEmp','fGenero','fAntig','fArea'].forEach(id =>
+['fSede','fGen','fEmp','fGenero','fHRBP','fArea'].forEach(id =>
   document.getElementById(id).addEventListener('change', () => { if (rawData.length) rebuildAllDeferred('Aplicando filtros…'); })
 );
 // ══ CROSS-FILTER STATE ══
@@ -688,7 +685,7 @@ function getFiltered() {
   const fG = document.getElementById('fGen').value;
   const fE = document.getElementById('fEmp').value;
   const fN = document.getElementById('fGenero').value;
-  const fA = document.getElementById('fAntig').value;
+  const fH = document.getElementById('fHRBP').value;
   const fAr = document.getElementById('fArea').value;
   return rawData.filter(r => {
     if (norm(r['ESTATUS_COLABORADOR']) !== 'ACTIVO') return false;
@@ -696,7 +693,7 @@ function getFiltered() {
     if (fG && norm(r['GENERACION']) !== fG) return false;
     if (fE && norm(r['EMPRESA'])    !== fE) return false;
     if (fN && norm(r['GENERO'])     !== fN) return false;
-    if (fA && getRangoAntig(r)      !== fA) return false;
+    if (fH && rxHRBP(r)             !== fH) return false;
     if (fAr && norm(r['AREA'])      !== fAr) return false;
     // Cross-filters desde gráficas
     if (CF.SEDE         && norm(r['SEDE'])                       !== CF.SEDE)         return false;
@@ -896,14 +893,14 @@ function renderKPIs(data) {
   const fG = document.getElementById('fGen').value;
   const fE = document.getElementById('fEmp').value;
   const fN = document.getElementById('fGenero').value;
-  const fA = document.getElementById('fAntig').value;
+  const fH = document.getElementById('fHRBP').value;
   const fAr = document.getElementById('fArea').value;
   const matchFilters = (r) => {
     if (fS && rxSede(r) !== fS) return false;
     if (fG && rxGeneracion(r) !== fG) return false;
     if (fE && rxEmpresa(r) !== fE) return false;
     if (fN && norm(rxGet(r,'GENERO')) !== fN) return false;
-    if (fA && getRangoAntig(r) !== fA) return false;
+    if (fH && rxHRBP(r) !== fH) return false;
     if (fAr && rxArea(r) !== fAr) return false;
     return true;
   };
@@ -936,14 +933,14 @@ function abGetFiltered() {
   const fG = document.getElementById('fGen').value;
   const fE = document.getElementById('fEmp').value;
   const fN = document.getElementById('fGenero').value;
-  const fA = document.getElementById('fAntig').value;
+  const fH = document.getElementById('fHRBP').value;
   const fAr = document.getElementById('fArea').value;
   return rawData.filter(r => {
     if (fS && norm(r['SEDE'])       !== fS) return false;
     if (fG && norm(r['GENERACION']) !== fG) return false;
     if (fE && norm(r['EMPRESA'])    !== fE) return false;
     if (fN && norm(r['GENERO'])     !== fN) return false;
-    if (fA && getRangoAntig(r)      !== fA) return false;
+    if (fH && rxHRBP(r)             !== fH) return false;
     if (fAr && norm(r['AREA'])      !== fAr) return false;
     return true;
   });
@@ -956,11 +953,11 @@ function abYearOf(r, field) {
 function renderSidebar(data) {
   const total = data.length;
   const c = countBy(data,'NIVEL_JERARQUIA');
-  setText('sDireccion', c['DIRECCION']||0);
-  setText('sSupLider',  (c['SUPERVISION']||0)+(c['SUPERVISOR LIDER']||0));
-  setText('sGerencia',  c['GERENCIA']||0);
-  setText('sOperacion', (c['OPERACION']||0)+(c['OPERATIVO']||0));
-  setText('sCoord',     c['COORDINACION']||0);
+  setText('sDireccion',    c['DIRECCION']||0);
+  setText('sSubdireccion', c['SUBDIRECCION']||0);
+  setText('sGerencia',     c['GERENCIA']||0);
+  setText('sSupLider',     (c['SUPERVISION']||0)+(c['SUPERVISOR LIDER']||0));
+  setText('sOperacion',    (c['OPERACION']||0)+(c['OPERATIVO']||0));
   // % Género
   const h = data.filter(r=>norm(r['GENERO'])==='H').length;
   const m = data.filter(r=>norm(r['GENERO'])==='M').length;
@@ -971,7 +968,7 @@ function renderSidebar(data) {
   const fG=document.getElementById('fGen').value;
   const fE=document.getElementById('fEmp').value;
   const fN=document.getElementById('fGenero').value;
-  const fA=document.getElementById('fAntig').value;
+  const fH=document.getElementById('fHRBP').value;
   const fAr=document.getElementById('fArea').value;
   const base = rawData.filter(r=>{
     if(norm(r['ESTATUS_COLABORADOR'])!=='ACTIVO') return false;
@@ -979,7 +976,7 @@ function renderSidebar(data) {
     if(fG && norm(r['GENERACION'])!==fG) return false;
     if(fE && norm(r['EMPRESA'])!==fE) return false;
     if(fN && norm(r['GENERO'])!==fN) return false;
-    if(fA && getRangoAntig(r)!==fA) return false;
+    if(fH && rxHRBP(r)!==fH) return false;
     if(fAr && norm(r['AREA'])!==fAr) return false;
     return true;
   });
@@ -997,7 +994,7 @@ function renderGeneralMes(data) {
   const fG = document.getElementById('fGen').value;
   const fE = document.getElementById('fEmp').value;
   const fN = document.getElementById('fGenero').value;
-  const fA = document.getElementById('fAntig').value;
+  const fH = document.getElementById('fHRBP').value;
   const fAr = document.getElementById('fArea').value;
   const baseData = rawData.filter(r => {
     if (norm(r['ESTATUS_COLABORADOR']) !== 'ACTIVO') return false;
@@ -1005,7 +1002,7 @@ function renderGeneralMes(data) {
     if (fG && norm(r['GENERACION']) !== fG) return false;
     if (fE && norm(r['EMPRESA'])    !== fE) return false;
     if (fN && norm(r['GENERO'])     !== fN) return false;
-    if (fA && getRangoAntig(r)      !== fA) return false;
+    if (fH && rxHRBP(r)             !== fH) return false;
     if (fAr && norm(r['AREA'])      !== fAr) return false;
     return true;
   });
@@ -1076,7 +1073,7 @@ function renderHCSede(data) {
   const fG = document.getElementById('fGen').value;
   const fE = document.getElementById('fEmp').value;
   const fN = document.getElementById('fGenero').value;
-  const fA = document.getElementById('fAntig').value;
+  const fH = document.getElementById('fHRBP').value;
   const fAr = document.getElementById('fArea').value;
   const baseData = rawData.filter(r => {
     if (norm(r['ESTATUS_COLABORADOR']) !== 'ACTIVO') return false;
@@ -1084,7 +1081,7 @@ function renderHCSede(data) {
     if (fG && norm(r['GENERACION']) !== fG) return false;
     if (fE && norm(r['EMPRESA'])    !== fE) return false;
     if (fN && norm(r['GENERO'])     !== fN) return false;
-    if (fA && getRangoAntig(r)      !== fA) return false;
+    if (fH && rxHRBP(r)             !== fH) return false;
     if (fAr && norm(r['AREA'])      !== fAr) return false;
     return true;
   });
@@ -1894,14 +1891,14 @@ async function exportPDF() {
     const fG = document.getElementById('fGen').value;
     const fE = document.getElementById('fEmp').value;
     const fN = document.getElementById('fGenero').value;
-    const fA = document.getElementById('fAntig').value;
+    const fH = document.getElementById('fHRBP').value;
     const fAr = document.getElementById('fArea').value;
     const filtros = [];
     if (fS) filtros.push(`Sede: ${fS}`);
     if (fG) filtros.push(`Gen: ${fG}`);
     if (fE) filtros.push(`Empresa: ${fE}`);
     if (fN) filtros.push(`Género: ${fN}`);
-    if (fA) filtros.push(`Antig: ${fA}`);
+    if (fH) filtros.push(`HRBP: ${fH}`);
     if (fAr) filtros.push(`Área: ${fAr}`);
     const filtTxt = filtros.length ? filtros.join(' · ') : 'Todos los registros activos';
 
@@ -2175,14 +2172,14 @@ function renderAltasBajas() {
   const fG = document.getElementById('fGen').value;
   const fE = document.getElementById('fEmp').value;
   const fN = document.getElementById('fGenero').value;
-  const fA = document.getElementById('fAntig').value;
+  const fH = document.getElementById('fHRBP').value;
   const fAr = document.getElementById('fArea').value;
   const matchFilters = (r) => {
     if (fS && rxSede(r) !== fS) return false;
     if (fG && rxGeneracion(r) !== fG) return false;
     if (fE && rxEmpresa(r) !== fE) return false;
     if (fN && norm(rxGet(r, 'GENERO')) !== fN) return false;
-    if (fA && getRangoAntig(r) !== fA) return false;
+    if (fH && rxHRBP(r) !== fH) return false;
     if (fAr && rxArea(r) !== fAr) return false;
     return true;
   };
@@ -2274,14 +2271,14 @@ function abShowPopover(monthIdx) {
   const fG = document.getElementById('fGen').value;
   const fE = document.getElementById('fEmp').value;
   const fN = document.getElementById('fGenero').value;
-  const fA = document.getElementById('fAntig').value;
+  const fH = document.getElementById('fHRBP').value;
   const fAr = document.getElementById('fArea').value;
   const matchFilters = (r) => {
     if (fS && rxSede(r) !== fS) return false;
     if (fG && rxGeneracion(r) !== fG) return false;
     if (fE && rxEmpresa(r) !== fE) return false;
     if (fN && norm(rxGet(r, 'GENERO')) !== fN) return false;
-    if (fA && getRangoAntig(r) !== fA) return false;
+    if (fH && rxHRBP(r) !== fH) return false;
     if (fAr && rxArea(r) !== fAr) return false;
     return true;
   };
@@ -2667,7 +2664,7 @@ function pdRenderProfile(r, idx) {
     pdField('Sede', rxGet(r, 'SEDE')),
     pdField('Ubicación sede', rxGet(r, 'UBICACION_SEDE', 'UBICACIÓN SEDE', 'UBICACION SEDE', 'UBICACION', 'UBICACIÓN')),
     pdField('Oficina', rxGet(r, 'OFICINA')),
-    pdField('Local/Foráneo', rxGet(r, 'LOCAL/FORANEO', 'LOCAL/FORÁNEO', 'LOCAL FORANEO')),
+    pdField('HRBP', rxGet(r, 'HRBP', 'LOCAL/FORANEO', 'LOCAL/FORÁNEO', 'LOCAL FORANEO')),
     pdField('Nivel jerarquía', rxGet(r, 'NIVEL_JERARQUIA', 'NIVEL JERARQUICO', 'NIVEL JERARQUIA', 'NIVEL_JERARQUICO')),
     pdField('Jefe directo', jefe, { link: !!jefe }),
     pdField('Estatus jefe', rxGet(r, 'ESTATUS_JEFE_DIRECTO', 'ESTATUS JEFE DIRECTO')),
