@@ -3258,58 +3258,38 @@ let rotYearSelected = null; // null = aún no inicializado
 function refreshRotacionYear() {
   const yrSel = document.getElementById('rotYrGlobal');
   rotYearSelected = yrSel.value;
-  const years = yearsConBajas();
-  const rangoLbl = rotYearSelected
-    ? String(rotYearSelected)
-    : (years.length ? `${years[0]} – ${years[years.length-1]}` : '—');
-  let totalBajasRango = 0;
-  if (rotYearSelected) totalBajasRango = bajasYearSrc(Number(rotYearSelected)).length;
-  else for (const y of years) totalBajasRango += bajasYearSrc(y).length;
-  setText('rotSedeYrLbl', `${rangoLbl} · ${totalBajasRango} bajas`);
-  setText('rotEmpYrLbl', `${rangoLbl} · ${totalBajasRango} bajas`);
+  const totalBajasRango = bajasYearSrc(Number(rotYearSelected)).length;
+  setText('rotSedeYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
+  setText('rotEmpYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
   // Update en sitio (chart.update('none')) — instantáneo, sin overlay
   try { renderRotacionSede(); } catch(e) { console.error(e); }
   try { renderRotacionEmpresa(); } catch(e) { console.error(e); }
 }
 function renderRotacionView() {
-  // Selector global: año actual por default; "Todos los años" disponible
+  // Selector global: siempre un año específico — sin "Todos los años" (esa vista saturaba
+  // las gráficas de Sede/Empresa con un combo SEDE×AÑO ilegible).
   const yrSel = document.getElementById('rotYrGlobal');
   // En Rotación solo mostramos años donde realmente hay bajas
   const years = yearsConBajas();
   const curYr = new Date().getFullYear();
-  const fromSelect = yrSel.value; // string ('' = todos los años)
-  // Si la UI ya tiene un valor explícito (incluye '' para 'Todos'), respetarlo
-  if (yrSel.options.length > 0) {
-    rotYearSelected = fromSelect;
-  } else if (rotYearSelected == null) {
-    // Primer render: default al año actual si está en datos, si no al último año
-    rotYearSelected = years.includes(curYr) ? String(curYr) : (years.length ? String(years[years.length-1]) : '');
-  }
-  yrSel.innerHTML = '<option value="">Todos los años</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
-  yrSel.value = rotYearSelected;
-  const rangoLbl = rotYearSelected
-    ? String(rotYearSelected)
-    : (years.length ? `${years[0]} – ${years[years.length-1]}` : '—');
-  // Contador total de bajas en el rango seleccionado
-  let totalBajasRango = 0;
-  if (rotYearSelected) {
-    totalBajasRango = bajasYearSrc(Number(rotYearSelected)).length;
+  if (yrSel.options.length > 0 && yrSel.value) {
+    rotYearSelected = yrSel.value;
   } else {
-    for (const y of years) totalBajasRango += bajasYearSrc(y).length;
+    // Primer render: default al año actual si está en datos, si no al último año disponible
+    rotYearSelected = years.includes(curYr) ? String(curYr) : (years.length ? String(years[years.length-1]) : String(curYr));
   }
-  setText('rotSedeYrLbl', `${rangoLbl} · ${totalBajasRango} bajas`);
-  setText('rotEmpYrLbl', `${rangoLbl} · ${totalBajasRango} bajas`);
+  yrSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  yrSel.value = rotYearSelected;
+  const totalBajasRango = bajasYearSrc(Number(rotYearSelected)).length;
+  setText('rotSedeYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
+  setText('rotEmpYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
 
   // Poblar filtros UNA vez antes del render (preservan selección actual)
   const SEDES = [...new Set([...rawData, ...bajasData].map(r => rxSede(r)).filter(Boolean))].sort();
   const selSede = document.getElementById('rotLiderSede');
-  const selYrL = document.getElementById('rotLiderYr');
   const prevSL = selSede.value;
-  const prevYL = selYrL.value;
   selSede.innerHTML = '<option value="">Todas las sedes</option>' + SEDES.map(s => `<option value="${s}">${s}</option>`).join('');
-  selYrL.innerHTML  = '<option value="">Todos los años</option>'  + years.map(y => `<option value="${y}">${y}</option>`).join('');
   selSede.value = prevSL;
-  selYrL.value  = prevYL;
   const bSede = document.getElementById('rotBajasSede');
   const bYr   = document.getElementById('rotBajasYr');
   const prevBSede = bSede.value;
@@ -3424,13 +3404,13 @@ function renderBajasTabla() {
 // Contexto vivo de la gráfica de Sede — los handlers leen de aquí para tener datos frescos
 // aún cuando reutilizamos la misma instancia de Chart.
 let chRotSedeCtx = { pairs: [], bajasBySedeYear: new Map(), kind: null };
+// Vuelve a barras por sede (el selector de año ya no permite "Todos los años",
+// así que siempre hay un solo año seleccionado y la gráfica se queda en 5 barras).
 function renderRotacionSede() {
   const d = gd();
   const src = bajasSource();
   const SEDES = [...new Set([...rawData, ...bajasData].map(r => rxSede(r)).filter(Boolean))].sort();
-  // Si hay año seleccionado, solo ese; si "Todos", solo años con bajas
-  const allYears = yearsConBajas();
-  const years = rotYearSelected ? [Number(rotYearSelected)] : allYears;
+  const years = [Number(rotYearSelected)];
   const hasVOLINV = hasTipoBajaData(src);
   const SEP = ' │ ';
   const labels = [];
@@ -3525,7 +3505,7 @@ function renderRotacionSede() {
               if (!p) return ` ${c.dataset.label}: ${c.parsed.y}`;
               const yr = Number(p.y);
               const totalBajas = (chRotSedeCtx.bajasBySedeYear.get(`${p.s}|${yr}`) || []).length;
-              const hcRows = rawData.filter(r => rxSede(r) === p.s);
+              const hcRows = [...rawData, ...bajasData].filter(r => rxSede(r) === p.s);
               const hcProm = hcPromMensual(hcRows, yr);
               const rot = hcProm > 0 ? (totalBajas / hcProm * 100).toFixed(1) : '0';
               return [` ${c.dataset.label}: ${c.parsed.y}`, ` Rotación total: ${rot}%`, ` HC prom: ${hcProm.toFixed(1)}`];
@@ -3547,8 +3527,7 @@ function renderRotacionEmpresa() {
   const d = gd();
   const src = bajasSource();
   const EMPRESAS = [...new Set([...rawData, ...bajasData].map(r => rxEmpresa(r)).filter(Boolean))].sort();
-  const allYears = yearsConBajas();
-  const years = rotYearSelected ? [Number(rotYearSelected)] : allYears;
+  const years = [Number(rotYearSelected)];
   const hasVOLINV = hasTipoBajaData(src);
   const SEP = ' │ ';
   const labels = [];
@@ -3635,7 +3614,7 @@ function renderRotacionEmpresa() {
               if (!p) return ` ${c.dataset.label}: ${c.parsed.y}`;
               const yr = Number(p.y);
               const totalBajas = (chRotEmpCtx.bajasByEmpYear.get(`${p.s}|${yr}`) || []).length;
-              const hcRows = rawData.filter(r => rxEmpresa(r) === p.s);
+              const hcRows = [...rawData, ...bajasData].filter(r => rxEmpresa(r) === p.s);
               const hcProm = hcPromMensual(hcRows, yr);
               const rot = hcProm > 0 ? (totalBajas / hcProm * 100).toFixed(1) : '0';
               return [` ${c.dataset.label}: ${c.parsed.y}`, ` Rotación: ${rot}%`, ` HC prom: ${hcProm.toFixed(1)}`];
@@ -3653,15 +3632,13 @@ function renderRotacionEmpresa() {
 
 function renderRotacionLider() {
   const sedeFilter = document.getElementById('rotLiderSede').value; // '' = todas
-  const yrFilter = document.getElementById('rotLiderYr').value;     // '' = todos
   const t = document.getElementById('rotTablaLider');
   const src = bajasSource();
   const hasVOLINV = hasTipoBajaData(src);
 
-  // Bajas filtradas
+  // Bajas filtradas — todos los años (la fórmula Equipo+Bajas ya no depende del rango de tiempo)
   let bajas = src.filter(r => rxFechaBaja(r) != null);
   if (sedeFilter) bajas = bajas.filter(r => rxSede(r) === sedeFilter);
-  if (yrFilter) bajas = bajas.filter(r => { const d = rxFechaBaja(r); return d && d.getFullYear() === Number(yrFilter); });
 
   // Agrupar por líder
   const grupos = {};
@@ -3675,7 +3652,10 @@ function renderRotacionLider() {
     grupos[jefe].total++;
   }
 
-  // Pre-agrupar activos por líder UNA SOLA VEZ (O(N) en vez de O(L×N))
+  // Equipo actual por líder UNA SOLA VEZ (O(N) en vez de O(L×N)) — misma fórmula que
+  // "Detalle por líder" del Resumen Ejecutivo: equipo actual + bajas = base, % = bajas÷base.
+  // Reemplaza al promedio mensual (HC PROM), que se desplomaba a casi cero — y disparaba
+  // la rotación a miles de % — en líderes con equipos chicos o de asignación reciente.
   const activosByLider = new Map();
   for (const r of rawData) {
     if (sedeFilter && rxSede(r) !== sedeFilter) continue;
@@ -3684,46 +3664,34 @@ function renderRotacionLider() {
     if (!activosByLider.has(j)) activosByLider.set(j, []);
     activosByLider.get(j).push(r);
   }
-
-  // HC PROM por líder: una sola pasada, promedio mensual sobre el rango total
-  const yearsData = yearsConDatos();
-  // Pre-calcular los EOM (end-of-month) de cada mes del rango — una sola vez
-  const eoms = [];
-  if (yrFilter) {
-    const y = Number(yrFilter);
-    for (let m = 0; m < 12; m++) eoms.push(new Date(y, m + 1, 0));
-  } else {
-    for (const y of yearsData) for (let m = 0; m < 12; m++) eoms.push(new Date(y, m + 1, 0));
-  }
   Object.values(grupos).forEach(g => {
-    const rowsLider = activosByLider.get(g.jefe) || [];
-    if (!eoms.length || !rowsLider.length) { g.hcProm = 0; g.rot = 0; return; }
-    let total = 0;
-    for (const eom of eoms) {
-      for (const r of rowsLider) if (isActiveAt(r, eom)) total++;
-    }
-    g.hcProm = total / eoms.length;
-    g.rot = g.hcProm > 0 ? (g.total / g.hcProm * 100) : 0;
+    g.team = (activosByLider.get(g.jefe) || []).length;
+    g.baseEquipo = g.team + g.total;
+    g.pct = g.baseEquipo > 0 ? (g.total / g.baseEquipo * 100) : 0;
   });
 
-  const filas = Object.values(grupos).sort((a,b) => b.rot - a.rot);
+  // Solo líderes que hoy siguen activos en la empresa — no tiene caso mostrar rotación
+  // de un líder que él mismo ya causó baja.
+  const activeLideres = new Set(rawData.map(r => norm(rxNombre(r))));
+  const filas = Object.values(grupos)
+    .filter(g => activeLideres.has(norm(g.jefe)))
+    .sort((a,b) => b.pct - a.pct);
   const showSedeCol = !sedeFilter; // si "todas las sedes", agrega columna Sede
   const colcount = (hasVOLINV ? 5 : 3) + 1 + (showSedeCol ? 1 : 0);
 
   if (!filas.length) {
     const sedeLbl = sedeFilter || 'todas las sedes';
-    const yrLbl = yrFilter || 'todos los años';
-    t.innerHTML = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">HC PROM</th><th class="num">Rotación</th></tr></thead><tbody><tr class="empty-row"><td colspan="${colcount}">Sin bajas registradas en ${sedeLbl} para ${yrLbl}.</td></tr></tbody>`;
+    t.innerHTML = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">Equipo</th><th class="num">Rotación</th></tr></thead><tbody><tr class="empty-row"><td colspan="${colcount}">Sin bajas registradas en ${sedeLbl}.</td></tr></tbody>`;
     return;
   }
-  const head = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">HC PROM</th><th class="num">Rotación</th></tr></thead>`;
+  const head = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">Equipo</th><th class="num">Rotación</th></tr></thead>`;
   const body = filas.map(g => {
     const lider = g.jefe.replace(/</g,'&lt;');
     const sedeCell = showSedeCol ? `<td>${g.sede.replace(/</g,'&lt;')}</td>` : '';
     const volInvCells = hasVOLINV
       ? `<td class="num">${g.inv}</td><td class="num">${g.vol}</td>`
       : '';
-    return `<tr><td>${lider}</td>${sedeCell}${volInvCells}<td class="num">${g.total}</td><td class="num">${g.hcProm.toFixed(1)}</td><td class="num pct">${g.rot.toFixed(0)}%</td></tr>`;
+    return `<tr><td>${lider}</td>${sedeCell}${volInvCells}<td class="num">${g.total}</td><td class="num">${g.baseEquipo}</td><td class="num pct">${g.pct.toFixed(0)}%</td></tr>`;
   }).join('');
   t.innerHTML = head + `<tbody>${body}</tbody>`;
 }
