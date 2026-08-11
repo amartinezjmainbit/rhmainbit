@@ -196,6 +196,12 @@ function precomputeDates(rows) {
 function rxJefe(r) { return ((rxGet(r, 'JEFE_DIRECTO', 'LIDER', 'LIDER DIRECTO', 'JEFE') || '')+'').trim(); }
 function rxArea(r) { return norm(rxGet(r, 'AREA', 'ÁREA')); }
 function rxHRBP(r) { return norm(rxGet(r, 'HRBP', 'LOCAL/FORANEO', 'LOCAL/FORÁNEO', 'LOCAL FORANEO')); }
+function rxSueldo(r) {
+  const v = rxGet(r, 'SUELDO MENSUAL MX', 'SUELDO MESUAL BRUTOS MX', 'SUELDO MENSUAL BRUTOS MX', 'SUELDO');
+  if (v == null || v === '') return 0;
+  const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9.\-]/g,''));
+  return isNaN(n) ? 0 : n;
+}
 function rxNivelJer(r) { return norm(rxGet(r, 'NIVEL_JERARQUIA', 'NIVEL JERARQUICO', 'NIVEL JERARQUIA', 'NIVEL_JERARQUICO')); }
 function rxSede(r) { if (r && r._sede !== undefined) return r._sede; return norm(rxGet(r, 'SEDE')); }
 function rxEmpresa(r) { if (r && r._empresa !== undefined) return r._empresa; return norm(rxGet(r, 'EMPRESA')); }
@@ -235,6 +241,8 @@ function setFecha() {
   const txt = `${now.getDate()} de ${meses[now.getMonth()]} de ${now.getFullYear()}`;
   const el = document.getElementById('fechaHoy');
   if (el) el.textContent = txt;
+  const yrEl = document.getElementById('appFooterYr');
+  if (yrEl) yrEl.textContent = '© ' + now.getFullYear();
 }
 
 function validateFileShape(rows, fileType) {
@@ -1835,7 +1843,22 @@ function buildTable(id,counts,total,labelFn) {
 }
 
 // ══ EXPORT PDF ══
+// Config por vista: qué contenedor capturar, título y nombre de archivo del PDF.
+// Así "Exportar PDF" siempre exporta lo que está viendo el usuario, no solo el dashboard.
+const EXPORT_VIEW_CFG = {
+  dashboard: { container: () => document.getElementById('scroll'), title: 'Reporte de Plantilla', filename: 'Dashboard_RH', footerLbl: 'Dashboard RH · Mainbit' },
+  altas:     { container: () => document.querySelector('#viewAltas .appview-body'), title: 'Reporte de Altas', filename: 'Altas_RH', footerLbl: 'Altas RH · Mainbit' },
+  rotacion:  { container: () => document.querySelector('#viewRotacion .appview-body'), title: 'Reporte de Rotación', filename: 'Rotacion_RH', footerLbl: 'Rotación RH · Mainbit' },
+};
+// Despachador del botón "Exportar PDF" del topbar — Resumen Ejecutivo ya tiene su propio
+// flujo de exportación (más elaborado), el resto de vistas usa el genérico exportPDF().
+function exportCurrentView() {
+  if (currentView === 'resumen') return exportResumenPDF();
+  return exportPDF();
+}
+
 async function exportPDF() {
+  if (currentView === 'resumen') return exportResumenPDF();
   const btn = document.getElementById('pdfBtn');
   if (!btn) return;
   const orig = btn.innerHTML;
@@ -1843,6 +1866,10 @@ async function exportPDF() {
   const prevTheme = theme;
 
   try {
+    const cfg = EXPORT_VIEW_CFG[currentView] || EXPORT_VIEW_CFG.dashboard;
+    const scroll = cfg.container();
+    if (!scroll) throw new Error('No se encontró contenido para exportar en esta vista.');
+
     // 1. Tema light SIN reconstruir DOM (preserva estado de filtros/cross-filter)
     if (theme !== 'light') {
       theme = 'light';
@@ -1855,8 +1882,7 @@ async function exportPDF() {
 
     const { jsPDF } = window.jspdf;
 
-    // 2. Expandir scroll y ocultar paneles laterales para captura ancho completo
-    const scroll = document.getElementById('scroll');
+    // 2. Expandir el contenedor y ocultar paneles laterales para captura ancho completo
     const sidebar = document.getElementById('sidebar');
     const rightPanel = document.getElementById('right');
     const prevOv = scroll.style.overflow, prevH = scroll.style.height, prevMaxH = scroll.style.maxHeight;
@@ -1874,50 +1900,36 @@ async function exportPDF() {
     const PIE = 6;
     const useW = PW - M * 2;
     const useH = PH - M * 2 - PIE;
-
-    // 3. Construir KPIs del header
-    const filt = getFiltered();
-    const total = filt.length;
-    const hombres = filt.filter(r => norm(r['GENERO']) === 'H').length;
-    const mujeres = filt.filter(r => norm(r['GENERO']) === 'M').length;
-    const yr = new Date().getFullYear();
-    const baseAB = abGetFiltered();
-    const altas = baseAB.filter(r => abYearOf(r,'FECHA_INGRESO') === yr).length;
-    const bajas = baseAB.filter(r => abYearOf(r,'FECHA_BAJA') === yr).length;
     const nowStr = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' });
 
-    // Etiqueta de filtros activos
-    const fS = document.getElementById('fSede').value;
-    const fG = document.getElementById('fGen').value;
-    const fE = document.getElementById('fEmp').value;
-    const fN = document.getElementById('fGenero').value;
-    const fH = document.getElementById('fHRBP').value;
-    const fAr = document.getElementById('fArea').value;
-    const filtros = [];
-    if (fS) filtros.push(`Sede: ${fS}`);
-    if (fG) filtros.push(`Gen: ${fG}`);
-    if (fE) filtros.push(`Empresa: ${fE}`);
-    if (fN) filtros.push(`Género: ${fN}`);
-    if (fH) filtros.push(`HRBP: ${fH}`);
-    if (fAr) filtros.push(`Área: ${fAr}`);
-    const filtTxt = filtros.length ? filtros.join(' · ') : 'Todos los registros activos';
-
-    // 4. Cabezal estilo Mainbit (gradiente navy → cielo)
-    const hdrEl = document.createElement('div');
-    hdrEl.style.cssText = 'position:fixed;left:-9999px;top:0;width:1120px;';
-    hdrEl.innerHTML = `
-      <div style="background:linear-gradient(135deg,#071526 0%,#0E2447 45%,#1f4f88 100%);
-        border-radius:12px;overflow:hidden;display:flex;justify-content:space-between;
-        align-items:center;padding:22px 32px;">
-        <div style="flex-shrink:0;min-width:180px;">
-          <img src="${LOGO_W}" style="height:54px;object-fit:contain;display:block;"/>
-          <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;letter-spacing:.4px;">Recursos Humanos · Dashboard</div>
-        </div>
-        <div style="flex:1;text-align:center;padding:0 24px;">
-          <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:4px;letter-spacing:.3px;">Reporte de Plantilla</div>
-          <div style="font-size:11px;color:rgba(255,255,255,.7);margin-bottom:12px;">${filtTxt.replace(/</g,'&lt;')}</div>
-          <div style="display:inline-block;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.28);color:#fff;font-size:11px;font-weight:600;padding:5px 16px;border-radius:20px;">${nowStr}</div>
-        </div>
+    // 3. Cabezal estilo Mainbit (gradiente navy → cielo) — el dashboard trae KPIs propios;
+    // las demás vistas reutilizan la etiqueta de resumen que ya se ve en pantalla.
+    let hdrBadgesHtml = '';
+    let subtitleTxt = '';
+    if (currentView === 'dashboard') {
+      const filt = getFiltered();
+      const total = filt.length;
+      const hombres = filt.filter(r => norm(r['GENERO']) === 'H').length;
+      const mujeres = filt.filter(r => norm(r['GENERO']) === 'M').length;
+      const yr = new Date().getFullYear();
+      const baseAB = abGetFiltered();
+      const altas = baseAB.filter(r => abYearOf(r,'FECHA_INGRESO') === yr).length;
+      const bajas = baseAB.filter(r => abYearOf(r,'FECHA_BAJA') === yr).length;
+      const fS = document.getElementById('fSede').value;
+      const fG = document.getElementById('fGen').value;
+      const fE = document.getElementById('fEmp').value;
+      const fN = document.getElementById('fGenero').value;
+      const fH = document.getElementById('fHRBP').value;
+      const fAr = document.getElementById('fArea').value;
+      const filtros = [];
+      if (fS) filtros.push(`Sede: ${fS}`);
+      if (fG) filtros.push(`Gen: ${fG}`);
+      if (fE) filtros.push(`Empresa: ${fE}`);
+      if (fN) filtros.push(`Género: ${fN}`);
+      if (fH) filtros.push(`HRBP: ${fH}`);
+      if (fAr) filtros.push(`Área: ${fAr}`);
+      subtitleTxt = filtros.length ? filtros.join(' · ') : 'Todos los registros activos';
+      hdrBadgesHtml = `
         <div style="text-align:right;flex-shrink:0;min-width:260px;display:flex;gap:14px;justify-content:flex-end;">
           <div style="text-align:center;">
             <div style="font-size:20px;font-weight:800;color:#A78BFA;line-height:1;font-family:'JetBrains Mono',monospace;">${total}</div>
@@ -1939,7 +1951,33 @@ async function exportPDF() {
             <div style="font-size:20px;font-weight:800;color:#F59E0B;line-height:1;font-family:'JetBrains Mono',monospace;">${bajas}</div>
             <div style="font-size:8.5px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.5px;margin-top:5px;">Bajas ${yr}</div>
           </div>
+        </div>`;
+    } else {
+      // Reutiliza la etiqueta "AÑO · N bajas/registros" que ya está en pantalla en esa vista,
+      // así el PDF siempre cuadra con lo que el usuario está viendo — sin recalcular nada.
+      const liveLbl = currentView === 'rotacion'
+        ? document.getElementById('rotSedeYrLbl')
+        : document.getElementById('altasMesYr');
+      subtitleTxt = liveLbl ? liveLbl.textContent.trim() : '';
+      hdrBadgesHtml = '';
+    }
+
+    const hdrEl = document.createElement('div');
+    hdrEl.style.cssText = 'position:fixed;left:-9999px;top:0;width:1120px;';
+    hdrEl.innerHTML = `
+      <div style="background:linear-gradient(135deg,#071526 0%,#0E2447 45%,#1f4f88 100%);
+        border-radius:12px;overflow:hidden;display:flex;justify-content:space-between;
+        align-items:center;padding:22px 32px;">
+        <div style="flex-shrink:0;min-width:180px;">
+          <img src="${LOGO_W}" style="height:54px;object-fit:contain;display:block;"/>
+          <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;letter-spacing:.4px;">Recursos Humanos · Dashboard</div>
         </div>
+        <div style="flex:1;text-align:center;padding:0 24px;">
+          <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:4px;letter-spacing:.3px;">${cfg.title}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.7);margin-bottom:12px;">${subtitleTxt.replace(/</g,'&lt;')}</div>
+          <div style="display:inline-block;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.28);color:#fff;font-size:11px;font-weight:600;padding:5px 16px;border-radius:20px;">${nowStr}</div>
+        </div>
+        ${hdrBadgesHtml}
       </div>`;
     document.body.appendChild(hdrEl);
     await new Promise(r => setTimeout(r, 150));
@@ -1949,7 +1987,7 @@ async function exportPDF() {
     pdf.addImage(hdrCanvas.toDataURL('image/png'), 'PNG', M, M, useW, hdrHmm, '', 'FAST');
     const HDR = hdrHmm;
 
-    // 5. Capturar secciones individualmente
+    // 4. Capturar secciones individualmente
     const scale = 1.6;
     const refW = Math.round(scroll.getBoundingClientRect().width);
     const mmPerPx = useW / (refW * scale);
@@ -1959,7 +1997,7 @@ async function exportPDF() {
     function addPiePagina(pgNum) {
       pdf.setFontSize(7);
       pdf.setTextColor(150, 150, 150);
-      pdf.text('Dashboard RH · Mainbit', M, PH - 3);
+      pdf.text(cfg.footerLbl, M, PH - 3);
       pdf.text('Pág. ' + pgNum, PW - M, PH - 3, { align:'right' });
     }
 
@@ -2042,7 +2080,7 @@ async function exportPDF() {
     if (sidebar) sidebar.style.display = prevSidebar;
     if (rightPanel) rightPanel.style.display = prevRight;
 
-    pdf.save(`Dashboard_RH_${new Date().toISOString().slice(0,10)}.pdf`);
+    pdf.save(`${cfg.filename}_${new Date().toISOString().slice(0,10)}.pdf`);
   } catch (err) {
     console.error(err);
     alert('Error al generar PDF: ' + err.message);
@@ -3261,9 +3299,16 @@ function refreshRotacionYear() {
   const totalBajasRango = bajasYearSrc(Number(rotYearSelected)).length;
   setText('rotSedeYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
   setText('rotEmpYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
+  setText('rotAreaYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
+  setText('rotUbicYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
   // Update en sitio (chart.update('none')) — instantáneo, sin overlay
   try { renderRotacionSede(); } catch(e) { console.error(e); }
   try { renderRotacionEmpresa(); } catch(e) { console.error(e); }
+  try { renderRotacionArea(); } catch(e) { console.error(e); }
+  try { renderRotacionUbicacion(); } catch(e) { console.error(e); }
+  try { renderRotacionLider(); } catch(e) { console.error(e); }
+  try { renderMotivosSalida(); } catch(e) { console.error(e); }
+  try { renderCostosRotacion(); } catch(e) { console.error(e); }
 }
 function renderRotacionView() {
   // Selector global: siempre un año específico — sin "Todos los años" (esa vista saturaba
@@ -3283,6 +3328,8 @@ function renderRotacionView() {
   const totalBajasRango = bajasYearSrc(Number(rotYearSelected)).length;
   setText('rotSedeYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
   setText('rotEmpYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
+  setText('rotAreaYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
+  setText('rotUbicYrLbl', `${rotYearSelected} · ${totalBajasRango} bajas`);
 
   // Poblar filtros UNA vez antes del render (preservan selección actual)
   const SEDES = [...new Set([...rawData, ...bajasData].map(r => rxSede(r)).filter(Boolean))].sort();
@@ -3313,9 +3360,21 @@ function renderRotacionView() {
   requestAnimationFrame(() => {
     try { renderRotacionEmpresa(); } catch(e) { console.error('chRotEmpresa:', e); }
     requestAnimationFrame(() => {
-      try { renderRotacionLider(); } catch(e) { console.error('rotLider:', e); }
+      try { renderRotacionArea(); } catch(e) { console.error('chRotArea:', e); }
       requestAnimationFrame(() => {
-        try { renderBajasTabla(); } catch(e) { console.error('bajasTabla:', e); }
+        try { renderRotacionUbicacion(); } catch(e) { console.error('chRotUbic:', e); }
+        requestAnimationFrame(() => {
+          try { renderRotacionLider(); } catch(e) { console.error('rotLider:', e); }
+          requestAnimationFrame(() => {
+            try { renderMotivosSalida(); } catch(e) { console.error('rotMotivos:', e); }
+            requestAnimationFrame(() => {
+              try { renderCostosRotacion(); } catch(e) { console.error('rotCostos:', e); }
+              requestAnimationFrame(() => {
+                try { renderBajasTabla(); } catch(e) { console.error('bajasTabla:', e); }
+              });
+            });
+          });
+        });
       });
     });
   });
@@ -3348,7 +3407,7 @@ function renderBajasTabla() {
   if (q && q.length >= 2) {
     const tokens = q.split(/\s+/).filter(Boolean);
     rows = rows.filter(r => {
-      const hay = pdNorm(rxNombre(r) + ' ' + rxPuesto(r) + ' ' + rxJefe(r) + ' ' + (r['SEDE']||'') + ' ' + (r['EMPRESA']||'') + ' ' + rxMotivoBaja(r));
+      const hay = pdNorm(rxNombre(r) + ' ' + rxPuesto(r) + ' ' + rxJefe(r) + ' ' + (r['SEDE']||'') + ' ' + (r['EMPRESA']||'') + ' ' + rxArea(r) + ' ' + rxHRBP(r) + ' ' + rxMotivoBaja(r));
       return tokens.every(t => hay.includes(t));
     });
   }
@@ -3630,22 +3689,354 @@ function renderRotacionEmpresa() {
   });
 }
 
+let chRotAreaCtx = { pairs: [], bajasByAreaYear: new Map(), kind: null };
+function renderRotacionArea() {
+  const d = gd();
+  const src = bajasSource();
+  const years = [Number(rotYearSelected)];
+  const hasVOLINV = hasTipoBajaData(src);
+  const SEP = ' │ ';
+  // Agrupar bajas por área primero — así solo mostramos áreas con bajas reales,
+  // no las ~25 del catálogo completo (la mayoría en cero para un solo año).
+  const bajasByAreaYear = new Map();
+  for (const y of years) {
+    for (const r of bajasYearSrc(y)) {
+      const a = rxArea(r);
+      if (!a) continue;
+      const k = `${a}|${y}`;
+      if (!bajasByAreaYear.has(k)) bajasByAreaYear.set(k, []);
+      bajasByAreaYear.get(k).push(r);
+    }
+  }
+  const AREAS = [...new Set([...bajasByAreaYear.keys()].map(k => k.split('|')[0]))].sort();
+  const labels = [];
+  const pairs = [];
+  AREAS.forEach(a => years.forEach(y => { labels.push(`${a}${SEP}${y}`); pairs.push({ s: a, y }); }));
+  const compute = (a, y, kind) => {
+    const bajas = bajasByAreaYear.get(`${a}|${y}`) || [];
+    if (kind === 'vol') return bajas.filter(r => isVoluntaria(r) === true).length;
+    if (kind === 'inv') return bajas.filter(r => isInvoluntaria(r) === true).length;
+    if (kind === 'desc') return bajas.filter(r => isVoluntaria(r) !== true && isInvoluntaria(r) !== true).length;
+    return bajas.length;
+  };
+  const dataINV = pairs.map(p => compute(p.s, Number(p.y), 'inv'));
+  const dataVOL = pairs.map(p => compute(p.s, Number(p.y), 'vol'));
+  const dataDESC = pairs.map(p => compute(p.s, Number(p.y), 'desc'));
+  const dataTOTAL = pairs.map(p => compute(p.s, Number(p.y), 'total'));
+  const kind = hasVOLINV ? 'volinv' : 'simple';
+
+  chRotAreaCtx.pairs = pairs;
+  chRotAreaCtx.bajasByAreaYear = bajasByAreaYear;
+  chRotAreaCtx.kind = kind;
+
+  const existing = charts['chRotArea'];
+  if (existing && existing.data && existing.data.datasets &&
+      ((kind === 'volinv' && existing.data.datasets.length === 3) ||
+       (kind === 'simple' && existing.data.datasets.length === 1))) {
+    existing.data.labels = labels;
+    if (kind === 'volinv') {
+      existing.data.datasets[0].data = dataINV;
+      existing.data.datasets[1].data = dataVOL;
+      existing.data.datasets[2].data = dataDESC;
+    } else {
+      existing.data.datasets[0].data = dataTOTAL;
+    }
+    existing.update('none');
+    return;
+  }
+
+  const datasets = kind === 'volinv' ? [
+    { label:'INV', backgroundColor:'#10B981', data: dataINV,
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'VOL', backgroundColor:'#A78BFA', data: dataVOL,
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'Sin clasificar', backgroundColor:'#94A3B8', data: dataDESC,
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ] : [
+    { label:'Bajas', backgroundColor:'#A78BFA', data: dataTOTAL,
+      datalabels:{ color:'#fff', font:{size:fs(11),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ];
+  destroyC('chRotArea');
+  charts['chRotArea'] = new Chart(document.getElementById('chRotArea'), {
+    type:'bar',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top: 24 } },
+      onClick(e, els) {
+        if (!els.length) return;
+        const p = chRotAreaCtx.pairs[els[0].index];
+        if (!p) return;
+        document.getElementById('rotBajasQ').value = p.s;
+        document.getElementById('rotBajasYr').value = String(p.y);
+        renderBajasTabla();
+        document.getElementById('rotBajasTabla').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showToast(`<b>Tabla filtrada</b><br/><small>${p.s} · ${p.y}</small>`, 'info');
+      },
+      plugins:{
+        legend:{ position:'top', align:'end', labels:{ color: d.label, font:{ size: fs(10)}, boxWidth: 11, padding: 10 } },
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const p = chRotAreaCtx.pairs[c.dataIndex];
+              if (!p) return ` ${c.dataset.label}: ${c.parsed.y}`;
+              const yr = Number(p.y);
+              const totalBajas = (chRotAreaCtx.bajasByAreaYear.get(`${p.s}|${yr}`) || []).length;
+              const hcRows = [...rawData, ...bajasData].filter(r => rxArea(r) === p.s);
+              const hcProm = hcPromMensual(hcRows, yr);
+              const rot = hcProm > 0 ? (totalBajas / hcProm * 100).toFixed(1) : '0';
+              return [` ${c.dataset.label}: ${c.parsed.y}`, ` Rotación: ${rot}%`, ` HC prom: ${hcProm.toFixed(1)}`];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:{ color: d.tick, font:{ size: fs(9)}, autoSkip:false, maxRotation:45, minRotation:35 } },
+        y:{ stacked:true, grid:{ color: d.grid }, ticks:{ color: d.tick, font:{ size: fs(9), precision: 0 } }, beginAtZero:true }
+      }
+    }
+  });
+}
+
+let chRotUbicCtx = { pairs: [], bajasByUbicYear: new Map(), kind: null };
+function renderRotacionUbicacion() {
+  const d = gd();
+  const src = bajasSource();
+  const years = [Number(rotYearSelected)];
+  const hasVOLINV = hasTipoBajaData(src);
+  const SEP = ' │ ';
+  // Agrupar bajas por HRBP/ubicación primero — solo mostramos valores con bajas reales.
+  // Campo dinámico: hoy solo trae FORANEO/LOCAL, pero en cuanto el Excel agregue más
+  // valores (p.ej. OFICINA/SITIO) aparecen solos, sin tocar el código.
+  const bajasByUbicYear = new Map();
+  for (const y of years) {
+    for (const r of bajasYearSrc(y)) {
+      const u = rxHRBP(r);
+      if (!u) continue;
+      const k = `${u}|${y}`;
+      if (!bajasByUbicYear.has(k)) bajasByUbicYear.set(k, []);
+      bajasByUbicYear.get(k).push(r);
+    }
+  }
+  const UBICS = [...new Set([...bajasByUbicYear.keys()].map(k => k.split('|')[0]))].sort();
+  const labels = [];
+  const pairs = [];
+  UBICS.forEach(u => years.forEach(y => { labels.push(`${u}${SEP}${y}`); pairs.push({ s: u, y }); }));
+  const compute = (u, y, kind) => {
+    const bajas = bajasByUbicYear.get(`${u}|${y}`) || [];
+    if (kind === 'vol') return bajas.filter(r => isVoluntaria(r) === true).length;
+    if (kind === 'inv') return bajas.filter(r => isInvoluntaria(r) === true).length;
+    if (kind === 'desc') return bajas.filter(r => isVoluntaria(r) !== true && isInvoluntaria(r) !== true).length;
+    return bajas.length;
+  };
+  const dataINV = pairs.map(p => compute(p.s, Number(p.y), 'inv'));
+  const dataVOL = pairs.map(p => compute(p.s, Number(p.y), 'vol'));
+  const dataDESC = pairs.map(p => compute(p.s, Number(p.y), 'desc'));
+  const dataTOTAL = pairs.map(p => compute(p.s, Number(p.y), 'total'));
+  const kind = hasVOLINV ? 'volinv' : 'simple';
+
+  chRotUbicCtx.pairs = pairs;
+  chRotUbicCtx.bajasByUbicYear = bajasByUbicYear;
+  chRotUbicCtx.kind = kind;
+
+  const existing = charts['chRotUbic'];
+  if (existing && existing.data && existing.data.datasets &&
+      ((kind === 'volinv' && existing.data.datasets.length === 3) ||
+       (kind === 'simple' && existing.data.datasets.length === 1))) {
+    existing.data.labels = labels;
+    if (kind === 'volinv') {
+      existing.data.datasets[0].data = dataINV;
+      existing.data.datasets[1].data = dataVOL;
+      existing.data.datasets[2].data = dataDESC;
+    } else {
+      existing.data.datasets[0].data = dataTOTAL;
+    }
+    existing.update('none');
+    return;
+  }
+
+  const datasets = kind === 'volinv' ? [
+    { label:'INV', backgroundColor:'#10B981', data: dataINV,
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'VOL', backgroundColor:'#A78BFA', data: dataVOL,
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } },
+    { label:'Sin clasificar', backgroundColor:'#94A3B8', data: dataDESC,
+      datalabels:{ color:'#fff', font:{size:fs(10),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ] : [
+    { label:'Bajas', backgroundColor:'#A78BFA', data: dataTOTAL,
+      datalabels:{ color:'#fff', font:{size:fs(11),weight:'700'}, anchor:'center', align:'center', formatter:v=>v>0?v:'' } }
+  ];
+  destroyC('chRotUbic');
+  charts['chRotUbic'] = new Chart(document.getElementById('chRotUbic'), {
+    type:'bar',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top: 24 } },
+      onClick(e, els) {
+        if (!els.length) return;
+        const p = chRotUbicCtx.pairs[els[0].index];
+        if (!p) return;
+        document.getElementById('rotBajasQ').value = p.s;
+        document.getElementById('rotBajasYr').value = String(p.y);
+        renderBajasTabla();
+        document.getElementById('rotBajasTabla').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showToast(`<b>Tabla filtrada</b><br/><small>${p.s} · ${p.y}</small>`, 'info');
+      },
+      plugins:{
+        legend:{ position:'top', align:'end', labels:{ color: d.label, font:{ size: fs(10)}, boxWidth: 11, padding: 10 } },
+        tooltip:{
+          padding:10, displayColors:true,
+          callbacks:{
+            label: c => {
+              const p = chRotUbicCtx.pairs[c.dataIndex];
+              if (!p) return ` ${c.dataset.label}: ${c.parsed.y}`;
+              const yr = Number(p.y);
+              const totalBajas = (chRotUbicCtx.bajasByUbicYear.get(`${p.s}|${yr}`) || []).length;
+              const hcRows = [...rawData, ...bajasData].filter(r => rxHRBP(r) === p.s);
+              const hcProm = hcPromMensual(hcRows, yr);
+              const rot = hcProm > 0 ? (totalBajas / hcProm * 100).toFixed(1) : '0';
+              return [` ${c.dataset.label}: ${c.parsed.y}`, ` Rotación: ${rot}%`, ` HC prom: ${hcProm.toFixed(1)}`];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:{ color: d.tick, font:{ size: fs(9)}, autoSkip:false, maxRotation:45, minRotation:35 } },
+        y:{ stacked:true, grid:{ color: d.grid }, ticks:{ color: d.tick, font:{ size: fs(9), precision: 0 } }, beginAtZero:true }
+      }
+    }
+  });
+}
+
+// ══ COSTOS DE LA ROTACIÓN ══
+// Multiplicador de meses de sueldo por nivel jerárquico, según el modelo de costos de
+// reemplazo de la empresa (a mayor seniority, mayor costo de reemplazo/reclutamiento).
+const COSTO_ROT_MULT  = { OPERACION: 2.5, COORDINACION: 2.5, LIDER: 3.5, GERENCIA: 3.5, SUBDIRECCION: 4.5, DIRECCION: 5.5 };
+const COSTO_ROT_ORDER = ['OPERACION', 'COORDINACION', 'LIDER', 'GERENCIA', 'SUBDIRECCION', 'DIRECCION'];
+const COSTO_ROT_LBL   = { OPERACION:'Operación', COORDINACION:'Coordinación', LIDER:'Líder', GERENCIA:'Gerencia', SUBDIRECCION:'Subdirección', DIRECCION:'Dirección' };
+// Agrupa el valor crudo de NIVEL_JERARQUIA en los 6 niveles de costo — mismos merges que
+// usa el sidebar (Operación+Operativo, Supervisión+Supervisor Líder). A diferencia del
+// sidebar, aquí sí se incluye Coordinación (×2.5, igual que Operación) para que el HC
+// total siempre cuadre con el total real de bajas — en una tabla de costos no conviene
+// dejar a nadie fuera silenciosamente.
+function jerarquiaBucketCosto(nivelJer) {
+  if (nivelJer === 'OPERACION' || nivelJer === 'OPERATIVO') return 'OPERACION';
+  if (nivelJer === 'COORDINACION') return 'COORDINACION';
+  if (nivelJer === 'SUPERVISION' || nivelJer === 'SUPERVISOR LIDER') return 'LIDER';
+  if (nivelJer === 'GERENCIA') return 'GERENCIA';
+  if (nivelJer === 'SUBDIRECCION') return 'SUBDIRECCION';
+  if (nivelJer === 'DIRECCION') return 'DIRECCION';
+  return null;
+}
+// ══ MOTIVOS DE SALIDA ══
+// Pivot TIPO/MOTIVO × mes, del año seleccionado en el selector global "AÑO".
+const MESES_UP = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+// Colapsa/expande las filas de motivo de un grupo (INVOLUNTARIA/VOLUNTARIA) al hacer
+// clic en su fila de subtotal — el subtotal se queda visible siempre, solo se ocultan
+// los renglones de detalle debajo.
+function toggleMotivosGrupo(headEl) {
+  const tipo = headEl.getAttribute('data-group-head');
+  const collapsed = headEl.classList.toggle('collapsed');
+  const tbody = headEl.closest('tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll(`tr[data-group="${tipo}"]`).forEach(tr => {
+    tr.style.display = collapsed ? 'none' : '';
+  });
+}
+
+function renderMotivosSalida() {
+  const t = document.getElementById('rotTablaMotivos');
+  if (!t) return;
+  setText('rotMotivosYrLbl', String(rotYearSelected));
+  const bajas = bajasYearSrc(Number(rotYearSelected));
+  const sum = arr => arr.reduce((a,b) => a + b, 0);
+  const head = `<thead><tr><th>Tipo/Motivo</th>${MESES_UP.map(m => `<th class="num">${m}</th>`).join('')}<th class="num">Total</th></tr></thead>`;
+
+  if (!bajas.length) {
+    t.innerHTML = `${head}<tbody><tr class="empty-row"><td colspan="14">Sin bajas registradas en ${rotYearSelected}.</td></tr></tbody>`;
+    return;
+  }
+
+  // Estructura: { TIPO: { motivo: [conteo x 12 meses] } }
+  const tipos = { INVOLUNTARIA: {}, VOLUNTARIA: {}, 'SIN CLASIFICAR': {} };
+  const totalPorMes = Array(12).fill(0);
+  let totalGeneral = 0;
+  for (const r of bajas) {
+    const d = rxFechaBaja(r);
+    if (!d) continue;
+    const mes = d.getMonth();
+    const tipo = isInvoluntaria(r) === true ? 'INVOLUNTARIA' : (isVoluntaria(r) === true ? 'VOLUNTARIA' : 'SIN CLASIFICAR');
+    const motivo = norm(rxMotivoBaja(r)) || 'SIN MOTIVO';
+    if (!tipos[tipo][motivo]) tipos[tipo][motivo] = Array(12).fill(0);
+    tipos[tipo][motivo][mes]++;
+    totalPorMes[mes]++;
+    totalGeneral++;
+  }
+
+  const rowsHtml = [];
+  ['INVOLUNTARIA', 'VOLUNTARIA', 'SIN CLASIFICAR'].forEach(tipo => {
+    const motivos = tipos[tipo];
+    const motivoKeys = Object.keys(motivos);
+    if (!motivoKeys.length) return; // omitir el bloque si no hay bajas de ese tipo
+    const tipoTotals = Array(12).fill(0);
+    motivoKeys.forEach(m => motivos[m].forEach((v, i) => { tipoTotals[i] += v; }));
+    // Colapsado por default — el usuario expande el detalle que le interese.
+    rowsHtml.push(`<tr class="subtot collapsed" data-group-head="${tipo}" onclick="toggleMotivosGrupo(this)"><td><span class="motivo-chevron">▾</span>${tipo}</td>${tipoTotals.map(v => `<td class="num">${v || ''}</td>`).join('')}<td class="num">${sum(tipoTotals)}</td></tr>`);
+    motivoKeys
+      .sort((a, b) => sum(motivos[b]) - sum(motivos[a]))
+      .forEach(m => {
+        const arr = motivos[m];
+        rowsHtml.push(`<tr data-group="${tipo}" style="display:none;"><td class="motivo-lbl">${m.replace(/</g,'&lt;')}</td>${arr.map(v => `<td class="num">${v || ''}</td>`).join('')}<td class="num">${sum(arr)}</td></tr>`);
+      });
+  });
+  const totalRow = `<tr class="tot"><td>Total general</td>${totalPorMes.map(v => `<td class="num">${v || ''}</td>`).join('')}<td class="num">${totalGeneral}</td></tr>`;
+  t.innerHTML = `${head}<tbody>${rowsHtml.join('')}${totalRow}</tbody>`;
+}
+
+function renderCostosRotacion() {
+  const t = document.getElementById('rotTablaCostos');
+  if (!t) return;
+  setText('rotCostosYrLbl', String(rotYearSelected));
+  // HC = bajas del año seleccionado por nivel jerárquico (no headcount activo total).
+  const bajas = bajasYearSrc(Number(rotYearSelected));
+  const grupos = {};
+  COSTO_ROT_ORDER.forEach(k => { grupos[k] = { hc: 0, sueldo: 0 }; });
+  for (const r of bajas) {
+    const bucket = jerarquiaBucketCosto(rxNivelJer(r));
+    if (!bucket) continue;
+    grupos[bucket].hc++;
+    grupos[bucket].sueldo += rxSueldo(r);
+  }
+  let totalHC = 0, totalSueldo = 0, totalCosto = 0;
+  const rows = COSTO_ROT_ORDER.map(k => {
+    const g = grupos[k];
+    const costo = g.sueldo * COSTO_ROT_MULT[k];
+    totalHC += g.hc; totalSueldo += g.sueldo; totalCosto += costo;
+    return `<tr><td>${COSTO_ROT_LBL[k]}</td><td class="num">${g.hc}</td><td class="num">${pdFmtMoney(g.sueldo)}</td><td class="num">${pdFmtMoney(costo)}</td></tr>`;
+  }).join('');
+  const totalRow = `<tr class="tot"><td>Total</td><td class="num">${totalHC}</td><td class="num">${pdFmtMoney(totalSueldo)}</td><td class="num">${pdFmtMoney(totalCosto)}</td></tr>`;
+  t.innerHTML = `<thead><tr><th>Jerarquía</th><th class="num">HC</th><th class="num">$ Sueldo mensual</th><th class="num">$ Rotación</th></tr></thead><tbody>${rows}${totalRow}</tbody>`;
+}
+
 function renderRotacionLider() {
   const sedeFilter = document.getElementById('rotLiderSede').value; // '' = todas
   const t = document.getElementById('rotTablaLider');
   const src = bajasSource();
   const hasVOLINV = hasTipoBajaData(src);
 
-  // Bajas filtradas — todos los años (la fórmula Equipo+Bajas ya no depende del rango de tiempo)
-  let bajas = src.filter(r => rxFechaBaja(r) != null);
+  // Bajas del año seleccionado en el selector global "AÑO" de Rotación
+  let bajas = bajasYearSrc(Number(rotYearSelected));
   if (sedeFilter) bajas = bajas.filter(r => rxSede(r) === sedeFilter);
 
-  // Agrupar por líder
+  // Agrupar por líder — la sede se asigna después, desde el registro propio del líder en
+  // Activos (no la de sus subordinados dados de baja, que puede ser una sede distinta).
   const grupos = {};
   for (const r of bajas) {
     const jefe = rxJefe(r);
     if (!jefe) continue;
-    if (!grupos[jefe]) grupos[jefe] = { jefe, sede: rxSede(r) || '—', inv:0, vol:0, desc:0, total:0 };
+    if (!grupos[jefe]) grupos[jefe] = { jefe, sede: '—', inv:0, vol:0, desc:0, total:0 };
     if (isInvoluntaria(r) === true) grupos[jefe].inv++;
     else if (isVoluntaria(r) === true) grupos[jefe].vol++;
     else grupos[jefe].desc++;
@@ -3664,34 +4055,40 @@ function renderRotacionLider() {
     if (!activosByLider.has(j)) activosByLider.set(j, []);
     activosByLider.get(j).push(r);
   }
+  // Datos propios de cada líder (sede real) — un solo registro por nombre, tomado de Activos.
+  const liderInfo = new Map();
+  for (const r of rawData) {
+    const nombre = norm(rxNombre(r));
+    if (!liderInfo.has(nombre)) liderInfo.set(nombre, { sede: rxSede(r) || '—' });
+  }
   Object.values(grupos).forEach(g => {
     g.team = (activosByLider.get(g.jefe) || []).length;
-    g.baseEquipo = g.team + g.total;
-    g.pct = g.baseEquipo > 0 ? (g.total / g.baseEquipo * 100) : 0;
+    g.pct = g.team > 0 ? (g.total / g.team * 100) : 0;
+    const info = liderInfo.get(norm(g.jefe));
+    if (info) g.sede = info.sede;
   });
 
   // Solo líderes que hoy siguen activos en la empresa — no tiene caso mostrar rotación
   // de un líder que él mismo ya causó baja.
-  const activeLideres = new Set(rawData.map(r => norm(rxNombre(r))));
   const filas = Object.values(grupos)
-    .filter(g => activeLideres.has(norm(g.jefe)))
+    .filter(g => liderInfo.has(norm(g.jefe)))
     .sort((a,b) => b.pct - a.pct);
   const showSedeCol = !sedeFilter; // si "todas las sedes", agrega columna Sede
   const colcount = (hasVOLINV ? 5 : 3) + 1 + (showSedeCol ? 1 : 0);
 
   if (!filas.length) {
     const sedeLbl = sedeFilter || 'todas las sedes';
-    t.innerHTML = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">Equipo</th><th class="num">Rotación</th></tr></thead><tbody><tr class="empty-row"><td colspan="${colcount}">Sin bajas registradas en ${sedeLbl}.</td></tr></tbody>`;
+    t.innerHTML = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">Equipo actual</th><th class="num">Rotación</th></tr></thead><tbody><tr class="empty-row"><td colspan="${colcount}">Sin bajas registradas en ${sedeLbl}.</td></tr></tbody>`;
     return;
   }
-  const head = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">Equipo</th><th class="num">Rotación</th></tr></thead>`;
+  const head = `<thead><tr><th>Líder</th>${showSedeCol ? '<th>Sede</th>' : ''}${hasVOLINV ? '<th class="num">INV</th><th class="num">VOL</th>' : ''}<th class="num">Total</th><th class="num">Equipo actual</th><th class="num">Rotación</th></tr></thead>`;
   const body = filas.map(g => {
     const lider = g.jefe.replace(/</g,'&lt;');
     const sedeCell = showSedeCol ? `<td>${g.sede.replace(/</g,'&lt;')}</td>` : '';
     const volInvCells = hasVOLINV
       ? `<td class="num">${g.inv}</td><td class="num">${g.vol}</td>`
       : '';
-    return `<tr><td>${lider}</td>${sedeCell}${volInvCells}<td class="num">${g.total}</td><td class="num">${g.baseEquipo}</td><td class="num pct">${g.pct.toFixed(0)}%</td></tr>`;
+    return `<tr><td>${lider}</td>${sedeCell}${volInvCells}<td class="num">${g.total}</td><td class="num">${g.team}</td><td class="num pct">${g.pct.toFixed(0)}%</td></tr>`;
   }).join('');
   t.innerHTML = head + `<tbody>${body}</tbody>`;
 }

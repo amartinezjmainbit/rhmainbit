@@ -90,6 +90,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);
 #app.visible{display:flex;animation:fadeUp .5s ease;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
 
+/* FOOTER — fila fija de #app (flex-shrink:0), así #body siempre cede el espacio que
+   ocupa y nunca queda tapado ningún dato debajo. */
+#appFooter{
+  flex-shrink:0;height:26px;min-height:26px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--bg2);border-top:1px solid var(--border);
+  font-size:9px;color:var(--t3);letter-spacing:.3px;
+  font-weight:600;
+}
+
 /* TOP BAR — SIEMPRE oscuro en ambos modos (override de variables locales) */
 #topbar{
   height:80px;min-height:80px;
@@ -109,7 +119,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);
   --alight:#7FBBDC;
   --aglow:rgba(91,163,208,0.16);
 }
-.tlogo{height:36px;object-fit:contain;flex-shrink:0;}
+.tlogo{height:48px;object-fit:contain;flex-shrink:0;}
 .tdiv{width:1px;height:22px;background:var(--border);flex-shrink:0;}
 .fg{display:flex;flex-direction:column;gap:3px;align-items:flex-start;justify-content:center;}
 .flbl{font-size:9px;font-weight:700;color:var(--t2);text-transform:uppercase;
@@ -784,7 +794,7 @@ canvas{cursor:pointer;}
 }
 .appview-tabletools input[type="text"]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--aglow);}
 .appview-tabletools .fsel{width:auto;min-width:120px;}
-.appview-tablewrap{max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+.appview-tablewrap{max-height:360px;overflow-y:auto;overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
 .appview-tablewrap::-webkit-scrollbar{width:4px;}
 .appview-tablewrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 .appview-table{
@@ -807,6 +817,15 @@ canvas{cursor:pointer;}
 .appview-table tbody tr:last-child td{border-bottom:0;}
 .appview-table .empty-row td{text-align:center;color:var(--t3);font-style:italic;padding:18px;cursor:default;}
 .appview-table .empty-row:hover{background:transparent;}
+.appview-table tr.tot{cursor:default;}
+.appview-table tr.tot:hover{background:transparent;}
+.appview-table tr.tot td{color:var(--warn);font-weight:700;border-top:1px solid var(--border);}
+.appview-table tr.subtot{cursor:pointer;background:var(--bg3);}
+.appview-table tr.subtot:hover{background:var(--aglow);}
+.appview-table tr.subtot td{font-weight:800;color:var(--t1);}
+.motivo-chevron{display:inline-block;width:12px;margin-right:7px;font-size:11px;transition:transform .15s;color:var(--alight);}
+.appview-table tr.subtot.collapsed .motivo-chevron{transform:rotate(-90deg);}
+.appview-table td.motivo-lbl{padding-left:22px;color:var(--t2);}
 
 /* ══════════════════════════════════════════════════════════
    📋 RESUMEN EJECUTIVO — Estilo corporativo (SIEMPRE light, como el PDF)
