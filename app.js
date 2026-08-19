@@ -1846,9 +1846,9 @@ function buildTable(id,counts,total,labelFn) {
 // Config por vista: qué contenedor capturar, título y nombre de archivo del PDF.
 // Así "Exportar PDF" siempre exporta lo que está viendo el usuario, no solo el dashboard.
 const EXPORT_VIEW_CFG = {
-  dashboard: { container: () => document.getElementById('scroll'), title: 'Reporte de Plantilla', filename: 'Dashboard_RH', footerLbl: 'Dashboard RH · Mainbit' },
-  altas:     { container: () => document.querySelector('#viewAltas .appview-body'), title: 'Reporte de Altas', filename: 'Altas_RH', footerLbl: 'Altas RH · Mainbit' },
-  rotacion:  { container: () => document.querySelector('#viewRotacion .appview-body'), title: 'Reporte de Rotación', filename: 'Rotacion_RH', footerLbl: 'Rotación RH · Mainbit' },
+  dashboard: { container: () => document.getElementById('scroll'), title: 'Reporte de Plantilla', filename: 'Dashboard_RRHH', footerLbl: 'Dashboard RRHH · Mainbit' },
+  altas:     { container: () => document.querySelector('#viewAltas .appview-body'), title: 'Reporte de Altas', filename: 'Altas_RRHH', footerLbl: 'Altas RRHH · Mainbit' },
+  rotacion:  { container: () => document.querySelector('#viewRotacion .appview-body'), title: 'Reporte de Rotación', filename: 'Rotacion_RRHH', footerLbl: 'Rotación RRHH · Mainbit' },
 };
 // Despachador del botón "Exportar PDF" del topbar — Resumen Ejecutivo ya tiene su propio
 // flujo de exportación (más elaborado), el resto de vistas usa el genérico exportPDF().
@@ -4393,7 +4393,7 @@ async function exportResumenPDF() {
     }
     const yr = new Date().getFullYear();
     const fechaStr = new Date().toISOString().slice(0,10);
-    pdf.save(`Resumen_Ejecutivo_RH_${yr}_${fechaStr}.pdf`);
+    pdf.save(`Resumen_Ejecutivo_RRHH_${yr}_${fechaStr}.pdf`);
     showToast('<b>✓ PDF generado</b>', 'success');
   } catch (err) {
     console.error('Error generando PDF:', err);

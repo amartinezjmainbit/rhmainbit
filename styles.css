@@ -220,6 +220,18 @@ canvas{cursor:pointer;}
 .pill-pctf .pnum{color:#f472b6;font-size:18px;}
 .pill-alta .pnum{color:#10b981;font-size:18px;}
 
+/* Accesos rápidos del sidebar (Perfil/Rotación/Altas) — mismo ancho y ritmo que .pill */
+.sidenav{display:flex;flex-direction:column;gap:4px;width:138px;flex-shrink:0;}
+.sidenav-btn{
+  display:flex;align-items:center;gap:8px;width:100%;
+  background:#06101E;border:1px solid #0E2447;border-radius:10px;
+  padding:8px 10px;color:#94a3b8;font-family:inherit;font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.3px;cursor:pointer;transition:var(--trans);
+}
+.sidenav-btn svg{width:15px;height:15px;flex-shrink:0;color:var(--accent);}
+.sidenav-btn:hover{border-color:#1e3a5f;color:#f1f5f9;}
+.sidenav-btn span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
 /* SIDEBAR — overrides para modo CLARO (fondo claro + textos oscuros) */
 [data-theme="light"] #sidebar{
   background:#F1F5F9;
@@ -236,6 +248,8 @@ canvas{cursor:pointer;}
 [data-theme="light"] .pill:hover{border-color:#5BA3D0;box-shadow:0 2px 6px rgba(91,163,208,0.18);}
 [data-theme="light"] .pill .plbl{color:#475569;}
 /* los .pnum mantienen sus colores propios (naranja, sky, pink, green) — siguen vistosos en claro */
+[data-theme="light"] .sidenav-btn{background:#FFFFFF;border:1px solid #D1D5DB;color:#475569;box-shadow:0 1px 2px rgba(14,36,71,0.04);}
+[data-theme="light"] .sidenav-btn:hover{border-color:#5BA3D0;color:#0F172A;box-shadow:0 2px 6px rgba(91,163,208,0.18);}
 
 /* SIDEBAR — overrides para AZUL OSCURO (mismo patrón que light, con paleta propia) */
 [data-theme="blue-dark"] #sidebar{background:#050F1F;border-right:1px solid #12315C;}
@@ -245,6 +259,8 @@ canvas{cursor:pointer;}
 [data-theme="blue-dark"] .pill{background:#050F1F;border:1px solid #12315C;}
 [data-theme="blue-dark"] .pill:hover{border-color:#2E7BC4;}
 [data-theme="blue-dark"] .pill .plbl{color:#9FC3E0;}
+[data-theme="blue-dark"] .sidenav-btn{background:#050F1F;border:1px solid #12315C;color:#9FC3E0;}
+[data-theme="blue-dark"] .sidenav-btn:hover{border-color:#2E7BC4;color:#E8F1FA;}
 
 /* SIDEBAR — overrides para GRIS (mismo patrón que light, con paleta propia) */
 [data-theme="gray"] #sidebar{background:#1C1C1C;border-right:1px solid #383838;}
@@ -254,6 +270,8 @@ canvas{cursor:pointer;}
 [data-theme="gray"] .pill{background:#1C1C1C;border:1px solid #383838;}
 [data-theme="gray"] .pill:hover{border-color:#5BA3D0;}
 [data-theme="gray"] .pill .plbl{color:#A8A8A8;}
+[data-theme="gray"] .sidenav-btn{background:#1C1C1C;border:1px solid #383838;color:#A8A8A8;}
+[data-theme="gray"] .sidenav-btn:hover{border-color:#5BA3D0;color:#E8E8E8;}
 
 /* MAIN */
 #main{flex:1;display:flex;overflow:hidden;position:relative;}
@@ -1152,6 +1170,8 @@ canvas{cursor:pointer;}
   #sidebar .pill { width:108px; height:54px; flex-shrink:0; }
   #sidebar .pill .pnum { font-size:18px; }
   #sidebar .pill .plbl { font-size:9px; }
+  #sidebar .sidenav { flex-direction:row; width:auto; gap:6px; }
+  #sidebar .sidenav-btn { width:auto; padding:8px 10px; }
 
   /* ───── MAIN: ancho completo, sin overflow propio ───── */
   #main {
