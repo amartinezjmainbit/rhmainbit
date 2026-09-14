@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="blue-dark">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -58,11 +58,11 @@
         <div class="applauncher-divider"></div>
         <div class="applauncher-title">Tema de la aplicación</div>
         <div class="theme-opt-grid">
-          <div class="theme-opt active" id="th-dark" onclick="setTheme('dark')">
+          <div class="theme-opt" id="th-dark" onclick="setTheme('dark')">
             <span class="theme-swatch" style="background:linear-gradient(135deg,#0E1A30,#5BA3D0);"></span>
             <span class="theme-opt-lbl">Oscuro</span>
           </div>
-          <div class="theme-opt" id="th-blue-dark" onclick="setTheme('blue-dark')">
+          <div class="theme-opt active" id="th-blue-dark" onclick="setTheme('blue-dark')">
             <span class="theme-swatch" style="background:linear-gradient(135deg,#040C18,#2E7BC4);"></span>
             <span class="theme-opt-lbl">Azul oscuro</span>
           </div>
@@ -162,6 +162,9 @@
 
     <!-- SIDEBAR: solo KPIs, sin botones de navegación -->
     <div id="sidebar">
+      <button type="button" id="sidebarToggle" class="sidebar-toggle" onclick="toggleSidebar()" title="Colapsar menú" aria-label="Colapsar menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
       <div class="sidenav">
         <button type="button" class="sidenav-btn" onclick="openProfileDrawer()" title="Perfil">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>

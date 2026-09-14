@@ -198,9 +198,30 @@ canvas{cursor:pointer;}
   width:var(--side-w);min-width:var(--side-w);background:#06101E;
   display:flex;flex-direction:column;align-items:center;
   padding:10px 0 14px;gap:4px;border-right:1px solid #0E2447;flex-shrink:0;overflow-y:auto;overflow-x:hidden;
+  transition:width .2s ease,min-width .2s ease;
 }
 #sidebar::-webkit-scrollbar{width:3px;}
 #sidebar::-webkit-scrollbar-thumb{background:#2C4470;border-radius:2px;}
+
+/* Riel colapsado — solo íconos de navegación, se ocultan las tarjetas de estadística
+   (no tienen una versión "solo ícono" con sentido) y #main crece solo porque es flex:1 */
+#sidebar.collapsed{width:56px;min-width:56px;}
+#sidebar.collapsed .sidenav{width:36px;}
+#sidebar.collapsed .sidenav-btn{width:36px;height:36px;padding:0;justify-content:center;gap:0;}
+#sidebar.collapsed .sidenav-btn span{display:none;}
+#sidebar.collapsed .side-section-lbl,
+#sidebar.collapsed .sdiv,
+#sidebar.collapsed .pill{display:none;}
+
+.sidebar-toggle{
+  display:flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:8px;flex-shrink:0;
+  background:transparent;border:none;color:#94a3b8;
+  cursor:pointer;transition:var(--trans);align-self:center;
+}
+.sidebar-toggle:hover{color:var(--accent);}
+.sidebar-toggle svg{width:13px;height:13px;transition:transform .2s;}
+#sidebar.collapsed .sidebar-toggle svg{transform:rotate(180deg);}
 .side-section-lbl{
   font-size:10px;font-weight:800;color:#4a7fa8;text-transform:uppercase;
   letter-spacing:.8px;margin:8px 0 4px;
@@ -1165,6 +1186,10 @@ canvas{cursor:pointer;}
     align-items:center;
     gap:6px;
   }
+  /* El colapsado es un patrón de riel vertical — en móvil el sidebar ya es una
+     fila horizontal con scroll, así que el botón de colapsar no aplica aquí. */
+  .sidebar-toggle { display:none; }
+  #sidebar.collapsed { width:100%; min-width:0; }
   #sidebar .side-section-lbl { margin:0 4px 0 0; flex-shrink:0; font-size:9px; }
   #sidebar .sdiv { width:1px; height:36px; margin:0 2px; flex-shrink:0; }
   #sidebar .pill { width:108px; height:54px; flex-shrink:0; }

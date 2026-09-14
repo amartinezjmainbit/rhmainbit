@@ -22,7 +22,7 @@ function getC(pal, key) {
   return pal.DEFAULT || '#64748b';
 }
 
-let rawData = [], bajasData = [], charts = {}, theme = 'dark', lastFile = null, fileHandle = null;
+let rawData = [], bajasData = [], charts = {}, theme = 'blue-dark', lastFile = null, fileHandle = null;
 
 // ══ DETECCIÓN DE TIPO DE ARCHIVO ══
 function detectFileType(rows) {
@@ -552,10 +552,16 @@ function gd() {
 }
 
 // ══ REINICIAR FILTROS ══
+// "Reiniciar" = volver al estado inicial completo: filtros, cross-filters, drawer de
+// perfil cerrado y de vuelta al Dashboard — no solo limpiar los dropdowns de filtro.
 function resetFiltros() {
   ['fSede','fGen','fEmp','fGenero','fHRBP','fArea'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  Object.keys(CF).forEach(k => CF[k] = null);
+  updateCFUI();
+  closeProfileDrawer();
+  if (currentView !== 'dashboard') switchView('dashboard');
   if (rawData.length) rebuildAllDeferred('Reiniciando filtros…');
 }
 
@@ -2907,6 +2913,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // APP LAUNCHER + SISTEMA DE VISTAS
 // ══════════════════════════════════════════════════════════
 let currentView = 'dashboard';
+
+// Colapsa/expande el sidebar a un riel de solo íconos (como "Puesta a Punto") — el
+// contenido principal se expande solo porque #main ya es flex:1.
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  if (!sb) return;
+  const collapsed = sb.classList.toggle('collapsed');
+  const btn = document.getElementById('sidebarToggle');
+  if (btn) btn.title = collapsed ? 'Expandir menú' : 'Colapsar menú';
+}
 
 function toggleAppLauncher(e) {
   if (e) e.stopPropagation();
