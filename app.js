@@ -1810,7 +1810,9 @@ function renderAntigüedad(data) {
 }
 
 // ══ RIGHT PANEL ══
+let _rightPanelData = []; // cache para los tooltips de pastel de las tarjetas (showStatTooltip)
 function renderRight(data) {
+  _rightPanelData = data;
   const total = data.length;
   const dom = field => dominant(countBy(data,field));
   const [pS,nS] = dom('SEDE');
@@ -1848,13 +1850,123 @@ function buildTable(id,counts,total,labelFn) {
     `<tr class="tot"><td>Total</td><td>${total}</td><td>100%</td></tr></tbody>`;
 }
 
+// ══ STAT TOOLTIP (pastel al pasar el cursor sobre las tarjetas del panel derecho) ══
+const STT_GENERO_PAL  = { HOMBRE:'#38bdf8', MUJER:'#f472b6' };
+const STT_RANGO_ORDER  = ['0 AÑOS','1 - 2 AÑOS','3 - 5 AÑOS','6 - 15 AÑOS','16 AÑOS O MÁS'];
+const STT_EDAD_ORDER   = ['< 25 AÑOS','25 - 34 AÑOS','35 - 44 AÑOS','45 - 54 AÑOS','55+ AÑOS'];
+function sttNum(v) {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9.\-]/g,''));
+  return isFinite(n) ? n : null;
+}
+function sttEdadBucket(v) {
+  const n = sttNum(v);
+  if (n == null) return null;
+  if (n < 25) return '< 25 AÑOS';
+  if (n < 35) return '25 - 34 AÑOS';
+  if (n < 45) return '35 - 44 AÑOS';
+  if (n < 55) return '45 - 54 AÑOS';
+  return '55+ AÑOS';
+}
+function sttData(kind) {
+  const rows = _rightPanelData;
+  switch (kind) {
+    case 'SEDE':            return { counts: countBy(rows,'SEDE'), pal: C_SEDE, title: 'Distribución por Sede' };
+    case 'GENERACION':      return { counts: countBy(rows,'GENERACION'), pal: C_GEN, title: 'Distribución por Generación', labelFn: k=>k.replace('GENERACION ','GEN ') };
+    case 'NIVEL_JERARQUIA': return { counts: countBy(rows,'NIVEL_JERARQUIA'), pal: C_JER, title: 'Distribución por Jerarquía' };
+    case 'EMPRESA':         return { counts: countBy(rows,'EMPRESA'), pal: C_EMP, title: 'Distribución por Empresa' };
+    case 'ADMIN':           return { counts: countBy(rows,'ADMINISTRADORA DE NOMINA'), pal: null, title: 'Distribución por Administradora' };
+    case 'GENERO': {
+      const c = countBy(rows,'GENERO');
+      const counts = {};
+      if (c.H) counts['HOMBRE'] = c.H;
+      if (c.M) counts['MUJER']  = c.M;
+      return { counts, pal: STT_GENERO_PAL, title: 'Distribución por Género' };
+    }
+    case 'ANTIG': {
+      const counts = {};
+      rows.forEach(r => { const ra = getRangoAntig(r); if (ra) counts[ra] = (counts[ra]||0)+1; });
+      return { counts, pal: null, order: STT_RANGO_ORDER, title: 'Distribución por Antigüedad' };
+    }
+    case 'EDAD': {
+      const counts = {};
+      rows.forEach(r => { const b = sttEdadBucket(r['EDAD']); if (b) counts[b] = (counts[b]||0)+1; });
+      return { counts, pal: null, order: STT_EDAD_ORDER, title: 'Distribución por Edad' };
+    }
+    default: return { counts: {}, pal: null, title: '' };
+  }
+}
+function showStatTooltip(ev, kind) {
+  if (!_rightPanelData.length) return;
+  const { counts, pal, order, title, labelFn } = sttData(kind);
+  const keys = Object.keys(counts);
+  if (!keys.length) return;
+  let entries = order ? order.filter(k => counts[k] != null).map(k => [k, counts[k]])
+                       : Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  // Sin scroll dentro del tooltip: si hay demasiadas categorías, se agrupan las
+  // más pequeñas en "Otros" para que la leyenda siempre quepa sin recortarse.
+  const MAX_SLICES = 6;
+  if (!order && entries.length > MAX_SLICES) {
+    const top = entries.slice(0, MAX_SLICES - 1);
+    const restSum = entries.slice(MAX_SLICES - 1).reduce((s,[,v]) => s+v, 0);
+    entries = [...top, ['OTROS', restSum]];
+  }
+  const total = entries.reduce((s,[,v]) => s+v, 0);
+  const topKey = order ? entries.slice().sort((a,b) => b[1]-a[1])[0][0] : entries[0][0];
+  const colors = entries.map(([k],i) => k === 'OTROS' ? '#64748b' : (pal ? getC(pal,k) : C_AREA_PAL[i % C_AREA_PAL.length]));
+  const offsets = entries.map(([k]) => k === topKey ? 12 : 0);
+
+  const pop = document.getElementById('statTooltip');
+  document.getElementById('statTooltipTitle').textContent = title;
+  document.getElementById('statTooltipLegend').innerHTML = entries.map(([k,v],i) => {
+    const lbl = labelFn ? labelFn(k) : k;
+    return `<div class="stt-leg-row${k===topKey?' top':''}"><span class="stt-dot" style="background:${colors[i]}"></span><span class="stt-leg-name">${lbl}</span><span class="stt-leg-v">${v} · ${pct(v,total)}</span></div>`;
+  }).join('');
+
+  destroyC('statTooltipChart');
+  const d = gd();
+  charts['statTooltipChart'] = new Chart(document.getElementById('statTooltipChart'), {
+    type: 'doughnut',
+    data: {
+      labels: entries.map(([k]) => labelFn ? labelFn(k) : k),
+      datasets: [{ data: entries.map(([,v]) => v), backgroundColor: colors, offset: offsets, borderWidth: 2, borderColor: d.bg }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      animation: { duration: 200 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false }, datalabels: { display: false } }
+    }
+  });
+
+  const rect = ev.currentTarget.getBoundingClientRect();
+  pop.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    const pw = pop.offsetWidth, ph = pop.offsetHeight;
+    let left = rect.left - pw - 12;
+    if (left < 8) left = rect.right + 12;
+    left = Math.min(left, window.innerWidth - pw - 8);
+    let top = rect.top + rect.height/2 - ph/2;
+    top = Math.max(8, Math.min(top, window.innerHeight - ph - 8));
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+    pop.classList.add('show');
+  });
+}
+function hideStatTooltip() {
+  const pop = document.getElementById('statTooltip');
+  if (!pop) return;
+  pop.classList.remove('show');
+  pop.classList.add('hidden');
+  destroyC('statTooltipChart');
+}
+
 // ══ EXPORT PDF ══
 // Config por vista: qué contenedor capturar, título y nombre de archivo del PDF.
 // Así "Exportar PDF" siempre exporta lo que está viendo el usuario, no solo el dashboard.
 const EXPORT_VIEW_CFG = {
   dashboard: { container: () => document.getElementById('scroll'), title: 'Reporte de Plantilla', filename: 'Dashboard_RRHH', footerLbl: 'Dashboard RRHH · Mainbit' },
   altas:     { container: () => document.querySelector('#viewAltas .appview-body'), title: 'Reporte de Altas', filename: 'Altas_RRHH', footerLbl: 'Altas RRHH · Mainbit' },
-  rotacion:  { container: () => document.querySelector('#viewRotacion .appview-body'), title: 'Reporte de Rotación', filename: 'Rotacion_RRHH', footerLbl: 'Rotación RRHH · Mainbit' },
+  rotacion:  { container: () => document.querySelector('#viewRotacion .appview-body'), title: 'Reporte de Bajas', filename: 'Bajas_RRHH', footerLbl: 'Bajas RRHH · Mainbit' },
 };
 // Despachador del botón "Exportar PDF" del topbar — Resumen Ejecutivo ya tiene su propio
 // flujo de exportación (más elaborado), el resto de vistas usa el genérico exportPDF().

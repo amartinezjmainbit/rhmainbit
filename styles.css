@@ -346,7 +346,7 @@ canvas{cursor:pointer;}
 .kcard{
   --kpi-color: var(--accent);
   background:var(--card);border:1px solid var(--border);border-radius:12px;
-  padding:10px 18px;min-width:120px;flex:1;position:relative;overflow:hidden;
+  padding:6px 18px 4px;min-width:120px;flex:1;position:relative;overflow:hidden;
   transition:var(--trans);
 }
 .kcard::after{
@@ -370,10 +370,10 @@ canvas{cursor:pointer;}
   text-shadow:0 0 16px color-mix(in srgb, var(--kpi-color) 45%, transparent);
 }
 .kval{
-  font-size:30px;font-weight:800;font-family:'JetBrains Mono',monospace;line-height:1;
+  font-size:23px;font-weight:800;font-family:'JetBrains Mono',monospace;line-height:1;
   color:var(--kpi-color);transition:color .25s ease, text-shadow .25s ease;
 }
-.klbl{font-size:8.5px;color:var(--t2);margin-top:3px;text-transform:uppercase;letter-spacing:.6px;}
+.klbl{font-size:8.5px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.6px;}
 .kcard-click{cursor:pointer;}
 
 /* KPI colors — 5 tonos claramente diferenciados, sin solapes */
@@ -400,6 +400,31 @@ canvas{cursor:pointer;}
   padding:13px 14px;text-align:center;transition:var(--trans);
 }
 .pcard:hover{border-color:var(--bh);}
+.pcard[data-tt]{cursor:help;}
+
+/* STAT TOOLTIP — pastel flotante al pasar el cursor sobre las tarjetas del panel derecho */
+.stat-tooltip{
+  position:fixed;z-index:500;width:236px;
+  background:var(--card);border:1px solid var(--accent);border-radius:12px;
+  box-shadow:0 14px 36px rgba(0,0,0,0.4);
+  padding:12px 13px;pointer-events:none;
+  opacity:0;transform:translateY(4px);transition:opacity .12s ease,transform .12s ease;
+}
+.stat-tooltip.show{opacity:1;transform:translateY(0);}
+.stat-tooltip-title{
+  font-size:9.5px;font-weight:800;color:var(--t2);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:10px;
+}
+.stat-tooltip-body{display:flex;gap:10px;align-items:center;}
+.stat-tooltip-chartwrap{width:84px;height:84px;flex-shrink:0;position:relative;}
+.stat-tooltip-legend{
+  flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;
+}
+.stt-leg-row{display:flex;align-items:center;gap:6px;font-size:9.5px;color:var(--t2);}
+.stt-leg-row.top{color:var(--t1);font-weight:800;}
+.stt-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.stt-leg-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.stt-leg-v{white-space:nowrap;font-weight:700;}
 
 /* Perfil empleado button — navy distintivo del cielo del resto */
 .profile-btn-right{

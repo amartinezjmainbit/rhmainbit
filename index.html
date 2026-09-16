@@ -170,13 +170,13 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
           <span>Perfil</span>
         </button>
-        <button type="button" class="sidenav-btn" onclick="switchView('rotacion')" title="Rotación">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 4 21 11 14 11"/></svg>
-          <span>Rotación</span>
-        </button>
         <button type="button" class="sidenav-btn" onclick="switchView('altas')" title="Altas">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
           <span>Altas</span>
+        </button>
+        <button type="button" class="sidenav-btn" onclick="switchView('rotacion')" title="Bajas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 4 21 11 14 11"/></svg>
+          <span>Bajas</span>
         </button>
       </div>
       <div class="sdiv"></div>
@@ -388,7 +388,7 @@
           </button>
           <div class="appview-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 4 21 11 14 11"/></svg>
-            Rotación
+            Bajas
           </div>
           <div class="appview-yrwrap">
             <label class="appview-yrlbl">Año</label>
@@ -397,19 +397,19 @@
         </div>
         <div class="appview-body">
           <div class="card">
-            <div class="ctitle">Rotación por Sede — <span id="rotSedeYrLbl" class="ctitle-yr"></span></div>
+            <div class="ctitle">Bajas por Sede — <span id="rotSedeYrLbl" class="ctitle-yr"></span></div>
             <div class="ab-chart-wrap chart-h300"><canvas id="chRotSede"></canvas></div>
           </div>
           <div class="card">
-            <div class="ctitle">Rotación por Empresa — <span id="rotEmpYrLbl" class="ctitle-yr"></span></div>
+            <div class="ctitle">Bajas por Empresa — <span id="rotEmpYrLbl" class="ctitle-yr"></span></div>
             <div class="ab-chart-wrap chart-h260"><canvas id="chRotEmpresa"></canvas></div>
           </div>
           <div class="card">
-            <div class="ctitle">Rotación por Área — <span id="rotAreaYrLbl" class="ctitle-yr"></span></div>
+            <div class="ctitle">Bajas por Área — <span id="rotAreaYrLbl" class="ctitle-yr"></span></div>
             <div class="ab-chart-wrap chart-h300"><canvas id="chRotArea"></canvas></div>
           </div>
           <div class="card">
-            <div class="ctitle">Rotación por Ubicación — <span id="rotUbicYrLbl" class="ctitle-yr"></span></div>
+            <div class="ctitle">Bajas por Ubicación — <span id="rotUbicYrLbl" class="ctitle-yr"></span></div>
             <div class="ab-chart-wrap chart-h260"><canvas id="chRotUbic"></canvas></div>
           </div>
           <div class="card mobile-hide">
@@ -421,7 +421,7 @@
             <div class="appview-tablewrap"><table class="appview-table" id="rotTablaCostos"></table></div>
           </div>
           <div class="card mobile-hide">
-            <div class="ctitle">Rotación por Líder</div>
+            <div class="ctitle">Bajas por Líder</div>
             <div class="appview-tabletools">
               <select id="rotLiderSede" class="fsel" onchange="renderRotacionLider()" title="Filtrar líder por sede" aria-label="Filtrar líder por sede"></select>
             </div>
@@ -580,21 +580,21 @@
 
     <!-- RIGHT PANEL -->
     <div id="right">
-      <div class="pcard"><div class="plbl2">Sede Predominante</div>
+      <div class="pcard" data-tt="SEDE" onmouseenter="showStatTooltip(event,'SEDE')" onmouseleave="hideStatTooltip()"><div class="plbl2">Sede Predominante</div>
         <div class="pval" id="prSede">–</div><div class="psub" id="prSedeSub"></div></div>
-      <div class="pcard"><div class="plbl2">Generación Predominante</div>
+      <div class="pcard" data-tt="GENERACION" onmouseenter="showStatTooltip(event,'GENERACION')" onmouseleave="hideStatTooltip()"><div class="plbl2">Generación Predominante</div>
         <div class="pval" id="prGen">–</div><div class="psub" id="prGenSub"></div></div>
-      <div class="pcard"><div class="plbl2">Género Predominante</div>
+      <div class="pcard" data-tt="GENERO" onmouseenter="showStatTooltip(event,'GENERO')" onmouseleave="hideStatTooltip()"><div class="plbl2">Género Predominante</div>
         <div class="pval" id="prGenero">–</div><div class="psub" id="prGeneroSub"></div></div>
-      <div class="pcard"><div class="plbl2">Jerarquía Predominante</div>
+      <div class="pcard" data-tt="NIVEL_JERARQUIA" onmouseenter="showStatTooltip(event,'NIVEL_JERARQUIA')" onmouseleave="hideStatTooltip()"><div class="plbl2">Jerarquía Predominante</div>
         <div class="pval" id="prJer">–</div><div class="psub" id="prJerSub"></div></div>
-      <div class="pcard"><div class="plbl2">Antigüedad Promedio</div>
+      <div class="pcard" data-tt="ANTIG" onmouseenter="showStatTooltip(event,'ANTIG')" onmouseleave="hideStatTooltip()"><div class="plbl2">Antigüedad Promedio</div>
         <div class="pval" id="prAntigProm">–</div></div>
-      <div class="pcard"><div class="plbl2">Edad Promedio</div>
+      <div class="pcard" data-tt="EDAD" onmouseenter="showStatTooltip(event,'EDAD')" onmouseleave="hideStatTooltip()"><div class="plbl2">Edad Promedio</div>
         <div class="pval" id="prEdadProm">–</div></div>
-      <div class="pcard"><div class="plbl2">Empresa Predominante</div>
+      <div class="pcard" data-tt="EMPRESA" onmouseenter="showStatTooltip(event,'EMPRESA')" onmouseleave="hideStatTooltip()"><div class="plbl2">Empresa Predominante</div>
         <div class="pval" id="prEmp">–</div><div class="psub" id="prEmpSub"></div></div>
-      <div class="pcard"><div class="plbl2">Administradora Nómina Predominante</div>
+      <div class="pcard" data-tt="ADMIN" onmouseenter="showStatTooltip(event,'ADMIN')" onmouseleave="hideStatTooltip()"><div class="plbl2">Administradora Nómina Predominante</div>
         <div class="pval" id="prAdmin">–</div><div class="psub" id="prAdminSub"></div></div>
       <div><div class="slbl">Por Sede</div><table class="stbl" id="tSede"></table></div>
       <div><div class="slbl">Por Generación</div><table class="stbl" id="tGen"></table></div>
@@ -633,6 +633,15 @@
     </div>
   </div>
 </aside>
+
+<!-- STAT TOOLTIP: aparece al pasar el cursor sobre las tarjetas del panel derecho -->
+<div id="statTooltip" class="stat-tooltip hidden" role="tooltip" aria-hidden="true">
+  <div class="stat-tooltip-title" id="statTooltipTitle"></div>
+  <div class="stat-tooltip-body">
+    <div class="stat-tooltip-chartwrap"><canvas id="statTooltipChart"></canvas></div>
+    <div class="stat-tooltip-legend" id="statTooltipLegend"></div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>
